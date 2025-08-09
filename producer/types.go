@@ -16,8 +16,8 @@ func newOrderPlacer(p *kafka.Producer, topic string) *orderPlacer {
 	}
 }
 
-// placeOrder sends a binary payload, the event (so an error or a confirmation that
-// it went ok) will then be recieved on op.producer's delivery chan.
+// placeOrder sends a binary payload, the event (an error or a confirmation that
+// it went ok) will then be recieved on op.producer event chan.
 func (op *orderPlacer) placeOrder(payload []byte) error {
 	err := op.producer.Produce(&kafka.Message{
 		TopicPartition: kafka.TopicPartition{
