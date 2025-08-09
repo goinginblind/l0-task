@@ -1,2 +1,9 @@
 # Binaries
 bin
+
+# Mock jsons
+valid_mock_orders.json
+invalid_mock_orders.json
+
+# Python venv
+.venv
