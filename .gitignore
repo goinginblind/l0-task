@@ -4,6 +4,7 @@ bin
 # Mock jsons
 valid_mock_orders.json
 invalid_mock_orders.json
+example.json
 
 # Python venv
 .venv
