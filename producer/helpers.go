@@ -36,6 +36,7 @@ func streamJSONObjects(filename string) (<-chan json.RawMessage, <-chan error) {
 
 		dec := json.NewDecoder(file)
 
+		// Reads the first '['
 		_, err = dec.Token()
 		if err != nil {
 			errs <- err
@@ -43,6 +44,8 @@ func streamJSONObjects(filename string) (<-chan json.RawMessage, <-chan error) {
 			return
 		}
 
+		// Reads every other object as a separate entity
+		// and parses it outside
 		for dec.More() {
 			var raw json.RawMessage
 			if err := dec.Decode(&raw); err != nil {
