@@ -6,8 +6,8 @@ type Order struct {
 	OrderUID          string    `json:"order_uid" validate:"required,alphanum"`
 	TrackNumber       string    `json:"track_number" validate:"required,alphanum"`
 	Entry             string    `json:"entry" validate:"required"`
-	Delivery          Delivery  `json:"delivery" validate:"required,dive"`
-	Payment           Payment   `json:"payment" validate:"required,dive"`
+	Delivery          Delivery  `json:"delivery" validate:"required"`
+	Payment           Payment   `json:"payment" validate:"required"`
 	Items             []Item    `json:"items" validate:"required,min=1,dive"`
 	Locale            string    `json:"locale" validate:"required,bcp47_language_tag"`
 	InternalSignature string    `json:"internal_signature" validate:"omitempty"`
@@ -37,9 +37,9 @@ type Payment struct {
 	Amount       int    `json:"amount" validate:"required,gte=0"`
 	PaymentDt    int    `json:"payment_dt" validate:"required,gt=0"`
 	Bank         string `json:"bank" validate:"required"`
-	DeliveryCost int    `json:"delivery_cost" validate:"required,gte=0"`
-	GoodsTotal   int    `json:"goods_total" validate:"required,gte=0"`
-	CustomFee    int    `json:"custom_fee" validate:"required,gte=0"`
+	DeliveryCost int    `json:"delivery_cost" validate:"gte=0"`
+	GoodsTotal   int    `json:"goods_total" validate:"required,gt=0"`
+	CustomFee    int    `json:"custom_fee" validate:"gte=0"`
 }
 
 type Item struct {
@@ -48,9 +48,9 @@ type Item struct {
 	Price       int    `json:"price" validate:"required,gte=0"`
 	Rid         string `json:"rid" validate:"required,alphanum"`
 	Name        string `json:"name" validate:"required"`
-	Sale        int    `json:"sale" validate:"required,gte=0,lte=100"`
+	Sale        int    `json:"sale" validate:"gte=0,lte=100"`
 	Size        string `json:"size" validate:"required"`
-	TotalPrice  int    `json:"total_price" validate:"required,gte=0"`
+	TotalPrice  int    `json:"total_price" validate:"gte=0"`
 	NmID        int    `json:"nm_id" validate:"required,gt=0"`
 	Brand       string `json:"brand" validate:"required"`
 	Status      int    `json:"status" validate:"required"`
