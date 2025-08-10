@@ -3,7 +3,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/go-playground/validator"
+	"github.com/go-playground/validator/v10"
 )
 
 // o.Validate is a wrapper around validator.Struct(o), it checks if the fields are valid using the
