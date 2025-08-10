@@ -12,7 +12,7 @@ func main() {
 		topic            = getEnv("KAFKA_TOPIC", "orders")
 		kafkaServiceAddr = getEnv("KAFKA_BROKERS", "localhost:9092")
 		kafkaClientID    = getEnv("KAFKA_CLIENT_ID", "foo")
-		jsonFile         = getEnv("JSON_FILE", "valid_mok_orders.json")
+		jsonFile         = getEnv("JSON_FILE", "valid_mock_orders.json")
 	)
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
