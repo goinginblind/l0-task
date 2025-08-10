@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // ProcessMessage converts a slice of bytes into a pointer to an Order struct.
@@ -27,7 +28,7 @@ func ProcessMessage(b []byte) (*Order, error) {
 		return nil, fmt.Errorf("fail to unmarshal into a struct: %w", err)
 	}
 
-	if data.OrderUID == "" {
+	if strings.TrimSpace(data.OrderUID) == "" {
 		return nil, fmt.Errorf("Missing the primary key: OrderUID, early reject")
 	}
 
