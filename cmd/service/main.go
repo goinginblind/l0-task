@@ -13,6 +13,7 @@ import (
 	"github.com/goinginblind/l0-task/internal/consumer"
 	"github.com/goinginblind/l0-task/internal/service"
 	"github.com/goinginblind/l0-task/internal/store"
+	"github.com/joho/godotenv"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -20,6 +21,12 @@ import (
 )
 
 func main() {
+	err := godotenv.Load(".env")
+	if err != nil {
+		log.Printf("fail to parse .env: %v\n", err)
+		log.Println("looking for the enviromental variables in the enviroment...")
+	}
+
 	// Load config
 	cfg, err := config.Load()
 	if err != nil {
