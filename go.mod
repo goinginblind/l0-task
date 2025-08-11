@@ -6,6 +6,7 @@ require (
 	github.com/confluentinc/confluent-kafka-go v1.9.2
 	github.com/go-playground/validator/v10 v10.27.0
 	github.com/jackc/pgx/v5 v5.7.5
+	github.com/joho/godotenv v1.5.1
 	github.com/lib/pq v1.10.9
 	github.com/stretchr/testify v1.10.0
 )
