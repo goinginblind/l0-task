@@ -1,22 +1,30 @@
-package main
+package store
 
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
+
+	"github.com/goinginblind/l0-task/internal/domain"
+
+	_ "github.com/lib/pq"
 )
 
-// OrdersModel is a wrapper around sql.DB connection pool,
-// made to not spread sql pool around the codebase and to implement
-// methods on.
-type OrdersModel struct {
-	DB *sql.DB
+// DBStore is a database implementation of the OrderStore interface
+type DBStore struct {
+	db *sql.DB
+}
+
+// NewDBStore creates a new DBStore
+func NewDBStore(db *sql.DB) *DBStore {
+	return &DBStore{db: db}
 }
 
 // Insert adds a new order to the database. It's atomic, so if
 // any of the inserts fail, the whole transaction is rolled back.
-func (m *OrdersModel) Insert(ctx context.Context, o *Order) error {
-	tx, err := m.DB.BeginTx(ctx, nil)
+func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
+	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
@@ -65,25 +73,21 @@ func (m *OrdersModel) Insert(ctx context.Context, o *Order) error {
 	return tx.Commit()
 }
 
-// GetJson retrieves a single order from the database as a JSON object.
-func (m *OrdersModel) GetJson(ctx context.Context, orderUID string) ([]byte, error) {
-	var json []byte
-	err := m.DB.QueryRowContext(ctx, qRetrieveJSON, orderUID).Scan(&json)
+// Get retrieves a single order from the database as a JSON object
+func (s *DBStore) Get(ctx context.Context, orderUID string) (*domain.Order, error) {
+	var jsonBytes []byte
+	err := s.db.QueryRowContext(ctx, qRetrieveJSON, orderUID).Scan(&jsonBytes)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, nil // not an error, just no such order exists
 		}
 		return nil, fmt.Errorf("getting order json: %w", err)
 	}
-	return json, nil
-}
 
-// Exists checks if an order with the given order_uid exists in the database.
-func (m *OrdersModel) Exists(ctx context.Context, orderUID string) (bool, error) {
-	var exists bool
-	err := m.DB.QueryRowContext(ctx, qExists, orderUID).Scan(&exists)
-	if err != nil {
-		return false, fmt.Errorf("checking if order exists: %w", err)
+	var order domain.Order
+	if err := json.Unmarshal(jsonBytes, &order); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal order: %w", err)
 	}
-	return exists, nil
+
+	return &order, nil
 }

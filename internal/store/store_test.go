@@ -1,16 +1,17 @@
-package main
+package store
 
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
 	"testing"
 	"time"
 
-	_ "github.com/lib/pq"
+	"github.com/goinginblind/l0-task/internal/domain"
+
+	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,50 +23,59 @@ const (
 	testDbPort = "5433"
 )
 
-var testModel *OrdersModel
+var testStore *DBStore
 
 func TestMain(m *testing.M) {
+	// Variable declarations
+	var cmd *exec.Cmd
+	var out []byte
+	var err error
+
 	// Start docker container
-	cmd := exec.Command("docker-compose", "up", "-d", "postgres-test")
-	err := cmd.Run()
+	cmd = exec.Command("docker", "compose", "up", "-d", "postgres-test")
+	err = cmd.Run()
 	if err != nil {
 		fmt.Println("could not start docker-compose:", err)
 		os.Exit(1)
 	}
 
-	// give db time to start
-	time.Sleep(5 * time.Second)
+	// Connect to DB with retries
+	dsn := fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
+		testDbUser, testDbPass, testDbHost, testDbPort, testDbName,
+	)
+	var db *sql.DB
+	for range 10 {
+		db, err = sql.Open("pgx", dsn)
+		if err == nil {
+			err = db.Ping()
+			if err == nil {
+				break
+			}
+		}
+		fmt.Println("waiting for db...")
+		time.Sleep(1 * time.Second)
+	}
+	if err != nil {
+		fmt.Println("could not connect to test db:", err)
+		os.Exit(1)
+	}
 
 	// Run migrations
-	dsn := fmt.Sprintf("user=%s password=%s dbname=%s host=%s port=%s sslmode=disable",
-		testDbUser, testDbPass, testDbName, testDbHost, testDbPort)
-
-	// goose migration
 	cmd = exec.Command("goose", "-dir", "../../sql", "postgres", dsn, "up")
-	out, err := cmd.CombinedOutput()
+	out, err = cmd.CombinedOutput()
 	if err != nil {
 		fmt.Printf("could not run migrations: %s\n%s", err, string(out))
 		os.Exit(1)
 	}
 
-	// connect to DB
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		fmt.Println("could not connect to test db:", err)
-		os.Exit(1)
-	}
-	if err := db.Ping(); err != nil {
-		fmt.Println("could not ping test db:", err)
-		os.Exit(1)
-	}
+	testStore = NewDBStore(db)
 
-	testModel = &OrdersModel{DB: db}
-
-	// run tests
+	// Run tests
 	code := m.Run()
 
-	// teardown
-	cmd = exec.Command("docker-compose", "down")
+	// Teardown
+	cmd = exec.Command("docker", "compose", "down", "-T", "1")
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println("could not stop docker-compose:", err)
@@ -74,17 +84,17 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestOrdersModel_Integration(t *testing.T) {
+func TestDBStore_Integration(t *testing.T) {
 	// Truncate tables before test to ensure clean state
-	_, err := testModel.DB.Exec("TRUNCATE orders, deliveries, payments, items RESTART IDENTITY CASCADE;")
+	_, err := testStore.db.Exec("TRUNCATE orders, deliveries, payments, items RESTART IDENTITY CASCADE;")
 	require.NoError(t, err)
 
 	// Create a sample order
-	order := &Order{
+	order := &domain.Order{
 		OrderUID:    "testuid123",
 		TrackNumber: "trackno1",
 		Entry:       "WBIL",
-		Delivery: Delivery{
+		Delivery: domain.Delivery{
 			Name:    "Test Testov",
 			Phone:   "+9720000000",
 			Zip:     "2639809",
@@ -93,7 +103,7 @@ func TestOrdersModel_Integration(t *testing.T) {
 			Region:  "Kraiot",
 			Email:   "test@gmail.com",
 		},
-		Payment: Payment{
+		Payment: domain.Payment{
 			Transaction:  "testuid123",
 			Currency:     "USD",
 			Provider:     "wbpay",
@@ -104,7 +114,7 @@ func TestOrdersModel_Integration(t *testing.T) {
 			GoodsTotal:   317,
 			CustomFee:    0,
 		},
-		Items: []Item{
+		Items: []domain.Item{
 			{
 				ChrtID:      9934930,
 				TrackNumber: "trackno1",
@@ -131,32 +141,15 @@ func TestOrdersModel_Integration(t *testing.T) {
 
 	ctx := context.Background()
 
-	t.Run("Insert and Exists", func(t *testing.T) {
-		// Check that it doesn't exist initially
-		exists, err := testModel.Exists(ctx, order.OrderUID)
-		require.NoError(t, err)
-		require.False(t, exists)
-
+	t.Run("Insert and Get", func(t *testing.T) {
 		// Insert the order
-		err = testModel.Insert(ctx, order)
+		err = testStore.Insert(ctx, order)
 		require.NoError(t, err)
 
-		// Check that it now exists
-		exists, err = testModel.Exists(ctx, order.OrderUID)
+		// Get the order back
+		retrievedOrder, err := testStore.Get(ctx, order.OrderUID)
 		require.NoError(t, err)
-		require.True(t, exists)
-	})
-
-	t.Run("GetJson", func(t *testing.T) {
-		// Get the order back as JSON
-		jsonBytes, err := testModel.GetJson(ctx, order.OrderUID)
-		require.NoError(t, err)
-		require.NotNil(t, jsonBytes)
-
-		// Unmarshal and verify
-		var retrievedOrder Order
-		err = json.Unmarshal(jsonBytes, &retrievedOrder)
-		require.NoError(t, err)
+		require.NotNil(t, retrievedOrder)
 
 		// Compare a few key fields
 		require.Equal(t, order.OrderUID, retrievedOrder.OrderUID)

@@ -1,6 +1,11 @@
-package main
+package domain
 
-import "time"
+import (
+	"fmt"
+	"time"
+
+	"github.com/go-playground/validator/v10"
+)
 
 type Order struct {
 	OrderUID          string    `json:"order_uid" validate:"required,alphanum"`
@@ -35,7 +40,7 @@ type Payment struct {
 	Currency     string `json:"currency" validate:"required,iso4217"`
 	Provider     string `json:"provider" validate:"required"`
 	Amount       int    `json:"amount" validate:"required,gte=0"`
-	PaymentDt    int    `json:"payment_dt" validate:"required,gt=0"`
+	PaymentDt    int64  `json:"payment_dt" validate:"required,gt=0"`
 	Bank         string `json:"bank" validate:"required"`
 	DeliveryCost int    `json:"delivery_cost" validate:"gte=0"`
 	GoodsTotal   int    `json:"goods_total" validate:"required,gt=0"`
@@ -54,4 +59,15 @@ type Item struct {
 	NmID        int    `json:"nm_id" validate:"required,gt=0"`
 	Brand       string `json:"brand" validate:"required"`
 	Status      int    `json:"status" validate:"required"`
+}
+
+// Validate checks if the fields are valid using the
+// exposed structs' validation tags.
+func (o *Order) Validate() (bool, error) {
+	valid := validator.New()
+	if err := valid.Struct(o); err != nil {
+		return false, fmt.Errorf("order with order_uid '%s' failed validation: %w", o.OrderUID, err)
+	}
+
+	return true, nil
 }

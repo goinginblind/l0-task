@@ -1,6 +1,7 @@
-package main
+package store
 
 const (
+	// Insert into 'orders' table
 	qInsertOrders = `
 		INSERT INTO orders (
 			order_uid, track_number, entry, locale, internal_signature, customer_id, 
@@ -10,6 +11,7 @@ const (
 		) RETURNING id;
 	`
 
+	// Insert into 'deliveries' table, here order_id references id, returned by order insertion
 	qInsertDeliveries = `
 		INSERT INTO deliveries (
 			order_id, name, phone, zip, city, address, region, email
@@ -17,7 +19,7 @@ const (
 			$1, $2, $3, $4, $5, $6, $7, $8
 		);
 	`
-
+	// Insert into 'payments' table, here order_id references id, returned by order insertion
 	qInsertPayments = `
 		INSERT INTO payments (
 			order_id, transaction, request_id, currency, provider, amount, 
@@ -26,7 +28,7 @@ const (
 			$1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
 		);
 	`
-
+	// Same stuff
 	qInsertItems = `
 		INSERT INTO items (
 			order_id, chrt_id, track_number, price, rid, name, 
@@ -36,6 +38,7 @@ const (
 		);
 	`
 
+	// Retrieves a JSON object from the database.
 	qRetrieveJSON = `
 		SELECT
 			json_build_object(
@@ -103,11 +106,5 @@ const (
 			) i ON o.id = i.order_id
 		WHERE
 			o.order_uid = $1;
-	`
-
-	qExists = `
-		SELECT EXISTS (
-			SELECT 1 FROM orders WHERE order_uid = $1
-		);
 	`
 )
