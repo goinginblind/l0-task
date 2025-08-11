@@ -2,9 +2,13 @@
 bin
 
 # Mock jsons
-valid_mock_orders.json
-invalid_mock_orders.json
-example.json
+*mock*.json
 
 # Python venv
 .venv
+
+# Secrets
+.env
+
+# My notes
+todo.md
