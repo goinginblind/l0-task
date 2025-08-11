@@ -12,7 +12,7 @@ func main() {
 		topic            = getEnv("KAFKA_TOPIC", "orders")
 		kafkaServiceAddr = getEnv("KAFKA_BROKERS", "localhost:9092")
 		kafkaClientID    = getEnv("KAFKA_CLIENT_ID", "foo")
-		jsonFile         = getEnv("JSON_FILE", "valid_mock_orders.json")
+		jsonFile         = getEnv("JSON_FILE", "mock.json")
 	)
 
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
@@ -63,7 +63,7 @@ func main() {
 
 	wg.Wait()
 
-	leftUnsent := p.Flush(5 * 100)
+	leftUnsent := p.Flush(15 * 1000)
 	if leftUnsent > 0 {
 		log.Printf("%d messages not delivered", leftUnsent)
 	}
