@@ -11,6 +11,7 @@ import (
 	"github.com/goinginblind/l0-task/internal/api"
 	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/consumer"
+	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
 	"github.com/goinginblind/l0-task/internal/store"
 	"github.com/joho/godotenv"
@@ -21,7 +22,14 @@ import (
 )
 
 func main() {
-	err := godotenv.Load(".env")
+	// Create a logger
+	logger, err := logger.NewSugarLogger()
+	if err != nil {
+		log.Fatalf("Failed to create a logger: %v", err)
+	}
+
+	// Try to load .env
+	err = godotenv.Load(".env")
 	if err != nil {
 		log.Printf("fail to parse .env: %v\n", err)
 		log.Println("looking for the enviromental variables in the enviroment...")
@@ -41,7 +49,7 @@ func main() {
 	defer db.Close()
 
 	// Create store, service, and server
-	dbStore := store.NewDBStore(db)
+	dbStore := store.NewDBStore(db, logger)
 	orderService := service.New(dbStore)
 	server := api.NewServer(orderService)
 

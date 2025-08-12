@@ -7,18 +7,23 @@ import (
 	"fmt"
 
 	"github.com/goinginblind/l0-task/internal/domain"
+	"github.com/goinginblind/l0-task/internal/pkg/logger"
 
 	_ "github.com/lib/pq"
 )
 
 // DBStore is a database implementation of the OrderStore interface
 type DBStore struct {
-	db *sql.DB
+	db     *sql.DB
+	logger logger.Logger
 }
 
 // NewDBStore creates a new DBStore
-func NewDBStore(db *sql.DB) *DBStore {
-	return &DBStore{db: db}
+func NewDBStore(db *sql.DB, logger logger.Logger) *DBStore {
+	return &DBStore{
+		db:     db,
+		logger: logger,
+	}
 }
 
 // Insert adds a new order to the database. It's atomic, so if

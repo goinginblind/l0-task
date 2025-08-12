@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/goinginblind/l0-task/internal/domain"
+	"github.com/goinginblind/l0-task/internal/pkg/logger"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/stretchr/testify/require"
@@ -69,7 +70,8 @@ func TestMain(m *testing.M) {
 		os.Exit(1)
 	}
 
-	testStore = NewDBStore(db)
+	mockLogger := logger.NewMockLogger()
+	testStore = NewDBStore(db, mockLogger)
 
 	// Run tests
 	code := m.Run()
