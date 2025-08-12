@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"sync"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
@@ -58,6 +59,7 @@ func main() {
 		defer wg.Done()
 		for data := range datach {
 			op.placeOrder(data)
+			time.Sleep(time.Second * 5)
 		}
 	}()
 

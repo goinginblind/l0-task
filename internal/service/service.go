@@ -48,7 +48,7 @@ func (s *orderService) ProcessNewOrder(ctx context.Context, order *domain.Order)
 		return fmt.Errorf("failed to save order: %w", err)
 	}
 
-	s.logger.Debugw("order successfully processed", "order_uid", order.OrderUID)
+	s.logger.Infow("order successfully processed", "order_uid", order.OrderUID)
 
 	return nil
 }

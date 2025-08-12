@@ -3,7 +3,6 @@ package consumer
 import (
 	"context"
 	"encoding/json"
-	"log"
 
 	"github.com/goinginblind/l0-task/internal/domain"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
@@ -33,6 +32,7 @@ func NewKafkaConsumer(cfg *kafka.ConfigMap, topic string, service service.OrderS
 	return &KafkaConsumer{
 		consumer: c,
 		service:  service,
+		logger:   logger,
 	}, nil
 }
 
@@ -41,7 +41,7 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			kc.logger.Infow("Shutting down the consumer")
+			kc.logger.Infow("Shutting down the consumer...")
 			kc.consumer.Close()
 			return
 		default:
@@ -56,14 +56,14 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 				// more gracefully
 				var order domain.Order
 				if err := json.Unmarshal(e.Value, &order); err != nil {
-					kc.logger.Errorw("Failed to unmarshal message", "msg", err)
+					kc.logger.Errorw("Failed to unmarshal message", "error", err)
 					continue
 				}
 				if err := kc.service.ProcessNewOrder(ctx, &order); err != nil {
-					kc.logger.Errorw("Fail to process order", "msg", err)
+					kc.logger.Errorw("Fail to process order", "error", err)
 				}
 			case kafka.Error:
-				log.Printf("Kafka error: %v", e)
+				kc.logger.Errorw("Kafka error", "error", e)
 			}
 		}
 	}
