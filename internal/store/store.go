@@ -4,10 +4,13 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"errors"
 	"fmt"
 
 	"github.com/goinginblind/l0-task/internal/domain"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
+	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgx/v5/pgconn"
 
 	_ "github.com/lib/pq"
 )
@@ -42,6 +45,11 @@ func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 		o.DeliveryService, o.ShardKey, o.SmID, o.DateCreated, o.OofShard,
 	).Scan(&orderID)
 	if err != nil {
+		// A duplicate insert check
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
+			return fmt.Errorf("%w: uid=%s", ErrAlreadyExists, o.OrderUID)
+		}
 		return fmt.Errorf("inserting order: %w", err)
 	}
 
@@ -83,15 +91,15 @@ func (s *DBStore) Get(ctx context.Context, orderUID string) (*domain.Order, erro
 	var jsonBytes []byte
 	err := s.db.QueryRowContext(ctx, qRetrieveJSON, orderUID).Scan(&jsonBytes)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			return nil, nil // not an error, just no such order exists
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, fmt.Errorf("get order %s: %w", orderUID, ErrNotFound)
 		}
-		return nil, fmt.Errorf("getting order json: %w", err)
+		return nil, fmt.Errorf("get order %s: %w", orderUID, err)
 	}
 
 	var order domain.Order
 	if err := json.Unmarshal(jsonBytes, &order); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal order: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal order %s: %w", orderUID, err)
 	}
 
 	return &order, nil
