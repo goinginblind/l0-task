@@ -3,9 +3,11 @@ package service
 import (
 	"context"
 	"errors"
-	"github.com/goinginblind/l0-task/internal/domain"
 	"testing"
 	"time"
+
+	"github.com/goinginblind/l0-task/internal/domain"
+	"github.com/goinginblind/l0-task/internal/pkg/logger"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -27,8 +29,8 @@ func (m *MockOrderStore) Get(ctx context.Context, uid string) (*domain.Order, er
 }
 
 func TestOrderService_ProcessNewOrder(t *testing.T) {
-	mockStore := new(MockOrderStore)
-	service := New(mockStore)
+	mockStore, mockLogger := new(MockOrderStore), logger.NewMockLogger()
+	service := New(mockStore, mockLogger)
 
 	ctx := context.Background()
 	order := &domain.Order{
@@ -105,8 +107,8 @@ func TestOrderService_ProcessNewOrder(t *testing.T) {
 }
 
 func TestOrderService_GetOrder(t *testing.T) {
-	mockStore := new(MockOrderStore)
-	service := New(mockStore)
+	mockStore, mockLogger := new(MockOrderStore), logger.NewMockLogger()
+	service := New(mockStore, mockLogger)
 
 	ctx := context.Background()
 	uid := "test-uid"

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/goinginblind/l0-task/internal/domain"
+	"github.com/goinginblind/l0-task/internal/pkg/logger"
 )
 
 // OrderStore defines the interface for storing and retrieving orders.
@@ -23,14 +24,18 @@ type OrderService interface {
 }
 
 // New creates a new OrderService.
-func New(store OrderStore) OrderService {
-	return &orderService{store: store}
+func New(store OrderStore, logger logger.Logger) OrderService {
+	return &orderService{
+		store:  store,
+		logger: logger,
+	}
 }
 
 // orderService provides the core business logic for handling orders.
 // Used to encapsulate/isolate the database.
 type orderService struct {
-	store OrderStore
+	store  OrderStore
+	logger logger.Logger
 }
 
 // ProcessNewOrder validates and stores a new order.
@@ -42,6 +47,8 @@ func (s *orderService) ProcessNewOrder(ctx context.Context, order *domain.Order)
 	if err := s.store.Insert(ctx, order); err != nil {
 		return fmt.Errorf("failed to save order: %w", err)
 	}
+
+	s.logger.Debugw("order successfully processed", "order_uid", order.OrderUID)
 
 	return nil
 }
