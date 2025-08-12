@@ -59,7 +59,7 @@ func main() {
 		"group.id":          "foo",
 		"auto.offset.reset": "smallest",
 	}
-	kafkaConsumer, err := consumer.NewKafkaConsumer(kafkaConfig, "orders", orderService)
+	kafkaConsumer, err := consumer.NewKafkaConsumer(kafkaConfig, "orders", orderService, logger)
 	if err != nil {
 		log.Fatalf("Failed to create kafka consumer: %v", err)
 	}
