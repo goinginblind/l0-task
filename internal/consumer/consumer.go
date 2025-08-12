@@ -3,9 +3,11 @@ package consumer
 import (
 	"context"
 	"encoding/json"
-	"github.com/goinginblind/l0-task/internal/domain"
-	"github.com/goinginblind/l0-task/internal/service"
 	"log"
+
+	"github.com/goinginblind/l0-task/internal/domain"
+	"github.com/goinginblind/l0-task/internal/pkg/logger"
+	"github.com/goinginblind/l0-task/internal/service"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
@@ -14,10 +16,11 @@ import (
 type KafkaConsumer struct {
 	consumer *kafka.Consumer
 	service  service.OrderService
+	logger   logger.Logger
 }
 
 // NewKafkaConsumer creates a new KafkaConsumer.
-func NewKafkaConsumer(cfg *kafka.ConfigMap, topic string, service service.OrderService) (*KafkaConsumer, error) {
+func NewKafkaConsumer(cfg *kafka.ConfigMap, topic string, service service.OrderService, logger logger.Logger) (*KafkaConsumer, error) {
 	c, err := kafka.NewConsumer(cfg)
 	if err != nil {
 		return nil, err
@@ -38,7 +41,7 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 	for {
 		select {
 		case <-ctx.Done():
-			log.Println("Shutting down consumer...")
+			kc.logger.Infow("Shutting down the consumer")
 			kc.consumer.Close()
 			return
 		default:
@@ -49,13 +52,15 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 
 			switch e := ev.(type) {
 			case *kafka.Message:
+				// TODO: Implement sentinel error messages to handle this part
+				// more gracefully
 				var order domain.Order
 				if err := json.Unmarshal(e.Value, &order); err != nil {
-					log.Printf("Failed to unmarshal message: %v", err)
+					kc.logger.Errorw("Failed to unmarshal message", "msg", err)
 					continue
 				}
 				if err := kc.service.ProcessNewOrder(ctx, &order); err != nil {
-					log.Printf("Failed to process order: %v", err)
+					kc.logger.Errorw("Fail to process order", "msg", err)
 				}
 			case kafka.Error:
 				log.Printf("Kafka error: %v", e)
