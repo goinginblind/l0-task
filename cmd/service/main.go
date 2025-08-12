@@ -50,8 +50,8 @@ func main() {
 
 	// Create store, service, and server
 	dbStore := store.NewDBStore(db, logger)
-	orderService := service.New(dbStore)
-	server := api.NewServer(orderService)
+	orderService := service.New(dbStore, logger)
+	server := api.NewServer(orderService, logger)
 
 	// Create Kafka consumer
 	kafkaConfig := &kafka.ConfigMap{

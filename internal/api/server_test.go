@@ -2,11 +2,13 @@ package api
 
 import (
 	"context"
-	"github.com/goinginblind/l0-task/internal/domain"
-	"github.com/goinginblind/l0-task/internal/service"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/goinginblind/l0-task/internal/domain"
+	"github.com/goinginblind/l0-task/internal/pkg/logger"
+	"github.com/goinginblind/l0-task/internal/service"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -33,8 +35,8 @@ func (m *MockOrderService) GetOrder(ctx context.Context, uid string) (*domain.Or
 }
 
 func TestServer_orderHandler(t *testing.T) {
-	mockService := new(MockOrderService)
-	server := NewServer(mockService)
+	mockService, mockLogger := new(MockOrderService), logger.NewMockLogger()
+	server := NewServer(mockService, mockLogger)
 
 	t.Run("success", func(t *testing.T) {
 		order := &domain.Order{OrderUID: "test-uid"}
