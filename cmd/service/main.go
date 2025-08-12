@@ -22,11 +22,16 @@ import (
 )
 
 func main() {
-	// Create a logger
+	// Create a logger and defer its buffer flush
 	logger, err := logger.NewSugarLogger()
 	if err != nil {
 		log.Fatalf("Failed to create a logger: %v", err)
 	}
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			log.Printf("failed to sync logger: %v\n", err)
+		}
+	}()
 
 	// Try to load .env
 	err = godotenv.Load(".env")

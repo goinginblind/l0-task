@@ -8,4 +8,5 @@ type Logger interface {
 	Errorw(msg string, keysAndValues ...any)
 	Panicw(msg string, keysAndValues ...any)
 	Fatalw(msg string, keysAndValues ...any)
+	Sync() error
 }

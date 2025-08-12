@@ -50,3 +50,7 @@ func (l *developmentLogger) Panicw(msg string, keysAndValues ...any) {
 func (l *developmentLogger) Fatalw(msg string, keysAndValues ...any) {
 	l.logger.Fatal(msg, l.toZapFields(keysAndValues...)...)
 }
+
+func (l *developmentLogger) Sync() error {
+	return l.logger.Sync()
+}

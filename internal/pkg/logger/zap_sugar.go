@@ -41,3 +41,7 @@ func (l *sugaredLogger) Panicw(msg string, keysAndValues ...any) {
 func (l *sugaredLogger) Fatalw(msg string, keysAndValues ...any) {
 	l.logger.Fatalw(msg, keysAndValues...)
 }
+
+func (l *sugaredLogger) Sync() error {
+	return l.logger.Sync()
+}

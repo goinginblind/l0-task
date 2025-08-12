@@ -17,3 +17,6 @@ func (l *MockLogger) Warnw(msg string, keysAndValues ...any)  {}
 func (l *MockLogger) Errorw(msg string, keysAndValues ...any) {}
 func (l *MockLogger) Panicw(msg string, keysAndValues ...any) {}
 func (l *MockLogger) Fatalw(msg string, keysAndValues ...any) {}
+func (l *MockLogger) Sync() error {
+	return nil
+}
