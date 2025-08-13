@@ -92,9 +92,9 @@ func (s *DBStore) Get(ctx context.Context, orderUID string) (*domain.Order, erro
 	err := s.db.QueryRowContext(ctx, qRetrieveJSON, orderUID).Scan(&jsonBytes)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, fmt.Errorf("get order %s: %w", orderUID, ErrNotFound)
+			return nil, ErrNotFound
 		}
-		return nil, fmt.Errorf("get order %s: %w", orderUID, err)
+		return nil, fmt.Errorf("querying for order %s: %w", orderUID, err)
 	}
 
 	var order domain.Order
