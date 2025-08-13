@@ -5,18 +5,28 @@ build:
 	go build -o bin/service ./cmd/service
 	go build -o bin/producer ./producer
 
-# run bins 
-run: build
-	./bin/producer &
-	./bin/service
+# Generate 100% valid JSON orders
+generate-orders:
+	python3 gen_orders.py -n 600 --invalid-rate 0.0 -o orders.json
+
+# Run producer in background
+run-producer:
+	./bin/producer --file orders.json --rps 1
+
+# Run service in foreground
+run-service:
+	./bin/service 
 
 # run all tests no cache
 test:
 	go test -v ./... -count=1
 
-# run test containers 
+# run test containers
 up_t:
 	docker compose up -d postgres-test zookeeper-test broker-test
+
+# Alias for up_t, as these are the main dev containers
+up: up_t
 
 # migrate psql
 migrate:
@@ -30,9 +40,10 @@ migrate:
 	'
 
 
-dev: build up_t migrate run
+dev: build generate-orders up migrate run-producer run-service
 
-# tearing down
+# tearing down and cleanup
 clean:
 	docker compose down -v --remove-orphans
+	rm -f orders.json
 	rm -rf bin/
