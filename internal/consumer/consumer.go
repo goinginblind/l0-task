@@ -42,7 +42,7 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 	// TODO: dont hardcode it
 	const workerCount = 4
 
-	msgch := make(chan *kafka.Message, workerCount*2) // <-- buf size might need an upd
+	msgch := make(chan *kafka.Message, workerCount*2) // <-- TODO: buf size might need an upd
 	var wg sync.WaitGroup
 
 	// workers
@@ -51,7 +51,7 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 		go func(workerID int) {
 			defer wg.Done()
 			for msg := range msgch {
-				// TODO: sentinel errs
+				// TODO: sentinel errs and do not allow foreign fields!!!
 				var order domain.Order
 				if err := json.Unmarshal(msg.Value, &order); err != nil {
 					kc.logger.Errorw("Failed to unmarshal message", "error", err)
@@ -62,6 +62,7 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 					continue
 				}
 				// TODO: commit offset
+
 			}
 		}(i)
 	}

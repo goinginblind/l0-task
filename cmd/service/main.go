@@ -60,9 +60,17 @@ func main() {
 
 	// Create Kafka consumer
 	kafkaConfig := &kafka.ConfigMap{
-		"bootstrap.servers": "localhost:9092",
-		"group.id":          "foo",
-		"auto.offset.reset": "smallest",
+		"bootstrap.servers":     "localhost:9092",
+		"group.id":              "orders-consumer",
+		"auto.offset.reset":     "earliest",
+		"enable.auto.commit":    false,
+		"isolation.level":       "read_committed",
+		"max.poll.interval.ms":  300000, // 5 min
+		"max.poll.records":      100,
+		"fetch.min.bytes":       1,
+		"fetch.max.bytes":       1048576, // 1Mb
+		"session.timeout.ms":    10000,   // 10 sec
+		"heartbeat.interval.ms": 3000,    //3 sec
 	}
 	kafkaConsumer, err := consumer.NewKafkaConsumer(kafkaConfig, "orders", orderService, logger)
 	if err != nil {

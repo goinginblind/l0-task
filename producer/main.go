@@ -22,15 +22,23 @@ func main() {
 		gibberish     = flag.Int("gibberish", 0, "Number of non-JSON, gibberish messages to send.")
 		kafkaTopic    = flag.String("topic", getEnv("KAFKA_TOPIC", "orders"), "Kafka topic to produce to.")
 		kafkaBrokers  = flag.String("brokers", getEnv("KAFKA_BROKERS", "localhost:9092"), "Kafka bootstrap servers.")
-		kafkaClientID = flag.String("client-id", getEnv("KAFKA_CLIENT_ID", "producer-1"), "Kafka client ID.")
+		kafkaClientID = flag.String("client-id", getEnv("KAFKA_CLIENT_ID", "orders-producer"), "Kafka client ID.")
 	)
 	flag.Parse()
 
 	// Kafka Producer Setup
 	p, err := kafka.NewProducer(&kafka.ConfigMap{
-		"bootstrap.servers": *kafkaBrokers,
-		"client.id":         *kafkaClientID,
-		"acks":              "all",
+		"bootstrap.servers":  *kafkaBrokers,
+		"client.id":          *kafkaClientID,
+		"acks":               "all",
+		"enable.idempotence": true,
+
+		"linger.ms":        5,
+		"batch.size":       65536, // 64kb
+		"compression.type": "lz4",
+
+		"retries":          5,
+		"retry.backoff.ms": 100,
 	})
 	if err != nil {
 		log.Fatalf("Failed to create producer: %s\n", err)
@@ -40,7 +48,7 @@ func main() {
 	// deliveryWg waits for all messages to be delivered
 	var deliveryWg sync.WaitGroup
 
-	// Handle Kafka delivery reports, there are no retries or anything fancy but it does the job fine
+	// Handle Kafka delivery reports, no fancy but it does the job fine
 	go func() {
 		for e := range p.Events() {
 			switch ev := e.(type) {
