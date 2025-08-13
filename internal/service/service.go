@@ -58,7 +58,7 @@ func (s *orderService) ProcessNewOrder(ctx context.Context, order *domain.Order)
 func (s *orderService) GetOrder(ctx context.Context, uid string) (*domain.Order, error) {
 	order, err := s.store.Get(ctx, uid)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get order: %w", err)
+		return nil, fmt.Errorf("failed to get order with uid '%s': %w", uid, err)
 	}
 	return order, nil
 }
