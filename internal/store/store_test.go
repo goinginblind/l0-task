@@ -76,8 +76,8 @@ func TestMain(m *testing.M) {
 	// Run tests
 	code := m.Run()
 
-	// Teardown
-	cmd = exec.Command("docker", "compose", "down", "-T", "1")
+	// Teardown: fix the orphan problem
+	cmd = exec.Command("docker", "compose", "down", "--remove-orphans")
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println("could not stop docker-compose:", err)
