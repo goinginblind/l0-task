@@ -1,6 +1,7 @@
 package consumer
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"sync"
@@ -51,10 +52,16 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 		go func(workerID int) {
 			defer wg.Done()
 			for msg := range msgch {
-				// TODO: sentinel errs and do not allow foreign fields!!!
+				// TODO: sentinel errs
 				var order domain.Order
-				if err := json.Unmarshal(msg.Value, &order); err != nil {
+				dec := json.NewDecoder(bytes.NewReader(msg.Value))
+				dec.DisallowUnknownFields()
+
+				if err := dec.Decode(&order); err != nil {
 					kc.logger.Errorw("Failed to unmarshal message", "error", err)
+					if _, err := kc.consumer.CommitMessage(msg); err != nil {
+						kc.logger.Errorw("Failed to commit after unmarshal fail", "error", err)
+					}
 					continue
 				}
 				if err := kc.service.ProcessNewOrder(ctx, &order); err != nil {

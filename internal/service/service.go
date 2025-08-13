@@ -40,7 +40,7 @@ type orderService struct {
 
 // ProcessNewOrder validates and stores a new order.
 func (s *orderService) ProcessNewOrder(ctx context.Context, order *domain.Order) error {
-	if _, err := order.Validate(); err != nil {
+	if err := order.Validate(); err != nil {
 		return fmt.Errorf("validation failed: %w", err)
 	}
 

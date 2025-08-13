@@ -1,11 +1,35 @@
 package domain
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/go-playground/validator/v10"
 )
+
+var (
+	// ErrInvalidOrder is sent when a message is invalid and it's data is at fault.
+	ErrInvalidOrder = errors.New("invalid order")
+)
+
+// Validate checks if the fields are valid using the
+// exposed structs' validation tags.
+//   - valid order returns nil
+//   - invalid order returns an ErrInvalidOrder
+//   - internal validator errors are wrapped and returned
+func (o *Order) Validate() error {
+	v := validator.New()
+	if err := v.Struct(o); err != nil {
+		// In case the message is NOT at fault
+		if _, ok := err.(*validator.InvalidValidationError); ok {
+			return fmt.Errorf("internal validator error: %w", err)
+		}
+		// The message IS at fault
+		return ErrInvalidOrder
+	}
+	return nil
+}
 
 type Order struct {
 	OrderUID          string    `json:"order_uid" validate:"required,alphanum"`
@@ -59,15 +83,4 @@ type Item struct {
 	NmID        int    `json:"nm_id" validate:"required,gt=0"`
 	Brand       string `json:"brand" validate:"required"`
 	Status      int    `json:"status" validate:"required"`
-}
-
-// Validate checks if the fields are valid using the
-// exposed structs' validation tags.
-func (o *Order) Validate() (bool, error) {
-	valid := validator.New()
-	if err := valid.Struct(o); err != nil {
-		return false, fmt.Errorf("order with order_uid '%s' failed validation: %w", o.OrderUID, err)
-	}
-
-	return true, nil
 }
