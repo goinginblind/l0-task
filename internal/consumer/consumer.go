@@ -1,12 +1,10 @@
 package consumer
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
 	"sync"
 
-	"github.com/goinginblind/l0-task/internal/domain"
+	"github.com/goinginblind/l0-task/internal/pkg/health"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
 
@@ -15,13 +13,15 @@ import (
 
 // KafkaConsumer consumes messages from Kafka and processes them.
 type KafkaConsumer struct {
-	consumer *kafka.Consumer
-	service  service.OrderService
-	logger   logger.Logger
+	consumer      *kafka.Consumer
+	service       service.OrderService
+	logger        logger.Logger
+	healthChecker *health.DBHealthChecker
 }
 
 // NewKafkaConsumer creates a new KafkaConsumer.
-func NewKafkaConsumer(cfg *kafka.ConfigMap, topic string, service service.OrderService, logger logger.Logger) (*KafkaConsumer, error) {
+func NewKafkaConsumer(cfg *kafka.ConfigMap, topic string,
+	service service.OrderService, logger logger.Logger, hc *health.DBHealthChecker) (*KafkaConsumer, error) {
 	c, err := kafka.NewConsumer(cfg)
 	if err != nil {
 		return nil, err
@@ -32,51 +32,41 @@ func NewKafkaConsumer(cfg *kafka.ConfigMap, topic string, service service.OrderS
 	}
 
 	return &KafkaConsumer{
-		consumer: c,
-		service:  service,
-		logger:   logger,
+		consumer:      c,
+		service:       service,
+		logger:        logger,
+		healthChecker: hc,
 	}, nil
 }
 
 // Run starts the consumer loop
 func (kc *KafkaConsumer) Run(ctx context.Context) {
-	// TODO: dont hardcode it
+	// TODO II: dont hardcode it
 	const workerCount = 4
 
-	msgch := make(chan *kafka.Message, workerCount*2) // <-- TODO: buf size might need an upd
+	jobs := make(chan *kafka.Message, workerCount*2) // <-- TODO II: buf size might need an upd
 	var wg sync.WaitGroup
 
 	// workers
 	for i := range workerCount {
 		wg.Add(1)
-		go func(workerID int) {
-			defer wg.Done()
-			for msg := range msgch {
-				// TODO: sentinel errs
-				var order domain.Order
-				dec := json.NewDecoder(bytes.NewReader(msg.Value))
-				dec.DisallowUnknownFields()
-
-				if err := dec.Decode(&order); err != nil {
-					kc.logger.Errorw("Failed to unmarshal message", "error", err)
-					if _, err := kc.consumer.CommitMessage(msg); err != nil {
-						kc.logger.Errorw("Failed to commit after unmarshal fail", "error", err)
-					}
-					continue
-				}
-				if err := kc.service.ProcessNewOrder(ctx, &order); err != nil {
-					kc.logger.Errorw("Fail to process order", "error", err)
-					continue
-				}
-				// TODO: commit offset
-
-			}
-		}(i)
+		w := &worker{
+			id:            i,
+			service:       kc.service,
+			logger:        kc.logger,
+			consumer:      kc.consumer,
+			jobs:          jobs,
+			ctx:           ctx,
+			healthChecker: kc.healthChecker,
+		}
+		go w.run(&wg)
 	}
 
-	// the poll goroutine
+	// the poll goroutine: handles shutdown, db long disconnects and sends messages to workers
 	go func() {
-		defer close(msgch)
+		defer close(jobs)
+		isPaused := false // Local state to track if we've already paused.
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -84,15 +74,43 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 				kc.consumer.Close()
 				return
 			default:
-				ev := kc.consumer.Poll(100)
+				// db is NOT healthy and consumer is NOT paused: log, pause
+				if !kc.healthChecker.IsHealthy() && !isPaused {
+					assignedPartitions, err := kc.consumer.Assignment()
+					if err == nil && len(assignedPartitions) > 0 {
+						kc.logger.Warnw("DB is unhealthy. Pausing consumption on partitions.", "partitions", assignedPartitions)
+						if err := kc.consumer.Pause(assignedPartitions); err != nil {
+							kc.logger.Errorw("Failed to pause consumer", "error", err)
+						} else {
+							isPaused = true
+						}
+					}
+					// db IS healthy and consumer IS paused: log, unpause
+				} else if kc.healthChecker.IsHealthy() && isPaused {
+					assignedPartitions, err := kc.consumer.Assignment()
+					if err == nil && len(assignedPartitions) > 0 {
+						kc.logger.Infow("DB is healthy again. Resuming consumption on partitions.", "partitions", assignedPartitions)
+						if err := kc.consumer.Resume(assignedPartitions); err != nil {
+							kc.logger.Errorw("Failed to resume consumer", "error", err)
+						} else {
+							isPaused = false
+						}
+					}
+				}
+
+				ev := kc.consumer.Poll(100) // this poll ensures the consumer doesn't disconnect from kafka
 				if ev == nil {
 					continue
 				}
+
 				switch e := ev.(type) {
 				case *kafka.Message:
-					msgch <- e
+					if !isPaused {
+						jobs <- e
+					}
 				case kafka.Error:
-					kc.logger.Errorw("Kafka error", "error", e)
+					// TODO III: handle AssignedPartitions/RevokedPartitions events here
+					kc.logger.Errorw("Kafka error", "error", e, "is_fatal", e.IsFatal())
 				}
 			}
 		}
