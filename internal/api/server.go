@@ -29,7 +29,7 @@ func (s *Server) Start(port string) {
 	http.HandleFunc("/orders/", s.orderHandler)
 	s.logger.Infow("Server listening", "port", port)
 	if err := http.ListenAndServe(port, nil); err != nil {
-		// TODO: log.Fatal(err) are the places specifically marked
+		// TODO II: log.Fatal(err) are the places specifically marked
 		// to be refactored with retry/backoffs/gracefull restarts or shutdowns,
 		// so this log stays for now
 		log.Fatal(err)
