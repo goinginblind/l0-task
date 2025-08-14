@@ -22,11 +22,11 @@ test:
 	go test -v ./... -count=1
 
 # run test containers
-up_t:
+up-t:
 	docker compose up -d postgres-test zookeeper-test broker-test
 
 # Alias for up_t, as these are the main dev containers
-up: up_t
+up: up-t
 
 # migrate psql
 migrate:
