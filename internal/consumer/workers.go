@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"sync"
+	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/goinginblind/l0-task/internal/domain"
@@ -13,6 +14,12 @@ import (
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
 	"github.com/goinginblind/l0-task/internal/store"
+)
+
+// TODO III: don't leave hardcoded
+const (
+	maxRetries   = 3
+	retryBackoff = 250 * time.Millisecond
 )
 
 type worker struct {
@@ -52,29 +59,67 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		return
 	}
 
-	if err := w.service.ProcessNewOrder(w.ctx, &order); err != nil {
-		switch {
-		case errors.Is(err, domain.ErrInvalidOrder):
-			// TODO III: DLQ
-			w.logger.Warnw("Invalid order received, discarding", "order_uid", order.OrderUID, "error", err)
+	var processErr error
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		processErr = w.service.ProcessNewOrder(w.ctx, &order)
+		if processErr == nil {
+			// success == commit, exit
 			w.commit(msg)
-
-		case errors.Is(err, store.ErrAlreadyExists):
-			// TODO III: DLQ
-			w.logger.Warnw("Order already exists, discarding", "order_uid", order.OrderUID, "error", err)
-			w.commit(msg)
-
-		case errors.Is(err, store.ErrConnectionFailed):
-			// TODO I: retry backoff transient errors (short ones where the retry interval is ~10ms)
-			w.logger.Errorw("Worker failed to process order due to DB connection error.", "order_uid", order.OrderUID, "error", err)
-			w.healthChecker.MarkUnhealthy()
-			return
-
-		default:
-			// TODO I: unknown errors == msg not commited, DLQ
-			w.logger.Errorw("Failed to process order with an unhandled error", "order_uid", order.OrderUID, "error", err)
 			return
 		}
+
+		// any other error == break the loop immediately
+		if !errors.Is(processErr, store.ErrConnectionFailed) {
+			break
+		}
+
+		// If it was a connection error, log a warning and wait before the next attempt.
+		if attempt < maxRetries {
+			w.logger.Warnw("Transient DB connection error, will retry.",
+				"order_uid", order.OrderUID,
+				"attempt", attempt,
+				"retry_in", retryBackoff,
+				"error", processErr,
+			)
+			time.Sleep(retryBackoff)
+		}
+	}
+
+	// inspect `processErr` to decide what to do
+	w.logger.Errorw("Failed to process order after all attempts.",
+		"order_uid", order.OrderUID,
+		"attempts", maxRetries,
+		"final_error", processErr,
+	)
+
+	switch {
+	case errors.Is(processErr, domain.ErrInvalidOrder):
+		// TODO III: DLQ
+		w.logger.Warnw("Invalid order received, discarding",
+			"order_uid", order.OrderUID,
+			"error", processErr,
+		)
+
+	case errors.Is(processErr, store.ErrAlreadyExists):
+		// TODO III: DLQ
+		w.logger.Warnw("Order already exists, discarding",
+			"order_uid", order.OrderUID,
+			"error", processErr,
+		)
+
+	case errors.Is(processErr, store.ErrConnectionFailed):
+		w.logger.Errorw("Worker failed to process order due to DB connection error.",
+			"order_uid", order.OrderUID,
+			"error", processErr,
+		)
+		w.healthChecker.MarkUnhealthy()
+		return
+
+	default:
+		// TODO III: unknown errors == msg commited, DLQ
+		w.logger.Errorw("Failed to process order with an unhandled error", "order_uid", order.OrderUID, "error", processErr)
+		w.commit(msg) // <-- placeholder
+		return
 	}
 	// success == commit
 	w.logger.Infow("order successfully processed", "worker_id", w.id, "order_uid", order.OrderUID)
