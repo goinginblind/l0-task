@@ -7,10 +7,12 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"github.com/goinginblind/l0-task/internal/api"
 	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/consumer"
+	"github.com/goinginblind/l0-task/internal/pkg/health"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
 	"github.com/goinginblind/l0-task/internal/store"
@@ -66,19 +68,21 @@ func main() {
 		"enable.auto.commit":    false,
 		"isolation.level":       "read_committed",
 		"max.poll.interval.ms":  300000, // 5 min
-		"max.poll.records":      100,
 		"fetch.min.bytes":       1,
 		"fetch.max.bytes":       1048576, // 1Mb
 		"session.timeout.ms":    10000,   // 10 sec
 		"heartbeat.interval.ms": 3000,    //3 sec
 	}
-	kafkaConsumer, err := consumer.NewKafkaConsumer(kafkaConfig, "orders", orderService, logger)
+	ctx, cancel := context.WithCancel(context.Background())
+	// TODO II: replace these hardcoded time intervals
+	hc := health.NewDBHealthChecker(db, logger, time.Second*5, time.Second*180)
+	kafkaConsumer, err := consumer.NewKafkaConsumer(kafkaConfig, "orders", orderService, logger, hc) // <- topic is hardcoded
 	if err != nil {
 		log.Fatalf("Failed to create kafka consumer: %v", err)
 	}
 
 	// Start server and consumer
-	ctx, cancel := context.WithCancel(context.Background())
+	go hc.Start(ctx)
 	go server.Start(cfg.HTTPServerPort)
 	go kafkaConsumer.Run(ctx)
 
