@@ -77,7 +77,7 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		}
 	}
 	// success == commit
-	w.logger.Infow("order successfully processed", "order_uid", order.OrderUID)
+	w.logger.Infow("order successfully processed", "worker_id", w.id, "order_uid", order.OrderUID)
 	w.commit(msg)
 }
 
