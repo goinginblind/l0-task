@@ -41,8 +41,7 @@ func NewServer(service service.OrderService, logger logger.Logger, cfg config.HT
 func (s *Server) Start(addr string) error {
 	s.httpServer.Addr = addr
 	s.logger.Infow("Server listening", "addr", addr)
-	// http.ErrServerClosed is a "good" error, returned after Shutdown,
-	// so we don't want to log it as a fatal error.
+	// http.ErrServerClosed is a "good" error, returned after Shutdown
 	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		return err
 	}
