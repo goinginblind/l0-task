@@ -2,53 +2,141 @@ package config
 
 import (
 	"fmt"
-	"os"
-	"strconv"
 	"strings"
+	"time"
+
+	"github.com/spf13/viper"
 )
 
-// Config holds all configuration for the application.
+// Config holds all configuration for the application, loaded with Viper.
 type Config struct {
-	PostgresDSN    string
-	HTTPServerPort string
-	KafkaBrokers   []string
-	KafkaTopic     string
-	KafkaGroupID   string
+	HTTPServer HTTPServerConfig `mapstructure:"http_server"`
+	Database   DatabaseConfig   `mapstructure:"database"`
+	Kafka      KafkaConfig      `mapstructure:"kafka"`
+	Health     HealthConfig     `mapstructure:"health"`
+	Consumer   ConsumerConfig   `mapstructure:"consumer"`
 }
 
-// Load populates the config from environment variables.
-// It does not have default values. Yeah I know, pretty sad.
-func Load() (*Config, error) {
-	required := []string{"POSTGRES_USER", "POSTGRES_PASSWORD", "POSTGRES_HOST", "POSTGRES_PORT", "POSTGRES_DB"}
-	for _, key := range required {
-		if strings.TrimSpace(os.Getenv(key)) == "" {
-			return nil, fmt.Errorf("missing required env var %s", key)
+// HTTPServerConfig holds HTTP server-specific settings (port)
+type HTTPServerConfig struct {
+	Port string `mapstructure:"port"`
+}
+
+// KafkaConfig holds Kafka-specific settings
+type KafkaConfig struct {
+	BootstrapServers    string `mapstructure:"bootstrap_servers"`
+	ConsumerGroupID     string `mapstructure:"consumer_group_id"`
+	AutoOffsetReset     string `mapstructure:"auto_offset_reset"`
+	EnableAutoCommit    bool   `mapstructure:"enable_auto_commit"`
+	IsolationLevel      string `mapstructure:"isolation_level"`
+	MaxPollIntervalMs   int    `mapstructure:"poll_interval_ms"`
+	MinFetchSizeBytes   int    `mapstructure:"fetch_min_bytes"`
+	MaxFetchSizeBytes   int    `mapstructure:"fetch_max_bytes"`
+	SessionTimeoutMs    int    `mapstructure:"session_timeout_ms"`
+	HeartbeatIntervalMs int    `mapstructure:"heartbeat_interval_ms"`
+}
+
+// DatabaseConfig holds database-specific settings.
+type DatabaseConfig struct {
+	User                 string `mapstructure:"user"`
+	Password             string `mapstructure:"password"`
+	Host                 string `mapstructure:"host"`
+	Port                 string `mapstructure:"port"`
+	DBName               string `mapstructure:"dbname"`
+	SSLMode              string `mapstructure:"sslmode"`
+	MaxConnections       int    `mapstructure:"max_connections"`
+	MaxIdlingConnections int    `mapstructure:"max_idle_conns"`
+}
+
+// DSN returns a concatenated dsn
+// string consisting of the configs db user, pass, host, etc.
+func (c DatabaseConfig) DSN() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+		c.User, c.Password, c.Host, c.Port, c.DBName, c.SSLMode,
+	)
+}
+
+// HealthConfig holds health check settings.
+type HealthConfig struct {
+	DBCheckInterval time.Duration `mapstructure:"db_hp_interval"`
+	DBCheckTimeout  time.Duration `mapstructure:"db_hp_timeout"`
+}
+
+// ConsumerConfig holds consumer-specific settings.
+type ConsumerConfig struct {
+	Topic         string        `mapstructure:"topic"`
+	WorkerCount   int           `mapstructure:"worker_count"`
+	JobBufferSize int           `mapstructure:"job_buffer_size"`
+	MaxRetries    int           `mapstructure:"max_retries"`
+	RetryBackoff  time.Duration `mapstructure:"retry_backoff"`
+}
+
+// LoadConfig reads configuration from file and environment variables:
+//   - first it loads defaults
+//   - reads a .yaml file if there's one, overwrites the above
+//   - looks for variables in the enviroment, overwrites all of the above
+func LoadConfig() (*Config, error) {
+	// THE DEFAULTS ARE SET HERE (they're somewhat reasonable(i'd like to think so))
+	// http server
+	viper.SetDefault("http_server.port", "8080")
+
+	// db
+	viper.SetDefault("database.host", "localhost")
+	viper.SetDefault("database.port", "5432")
+	viper.SetDefault("database.user", "postgres")
+	viper.SetDefault("database.password", "postgres")
+	viper.SetDefault("database.dbname", "orders_db")
+	viper.SetDefault("database.sslmode", "disable")
+	viper.SetDefault("database.max_connections", 10)
+	viper.SetDefault("database.max_idle_conns", 5)
+
+	// Kafka
+	viper.SetDefault("kafka.bootstrap_servers", "localhost:9092")
+	viper.SetDefault("kafka.consumer_group_id", "orders-consumer")
+	viper.SetDefault("kafka.auto_offset_reset", "earliest")
+	viper.SetDefault("kafka.enable_auto_commit", false)
+	viper.SetDefault("kafka.isolation_level", "read_committed")
+	viper.SetDefault("kafka.poll_interval_ms", 300000)
+	viper.SetDefault("kafka.fetch_min_bytes", 1)
+	viper.SetDefault("kafka.fetch_max_bytes", 1048576)
+	viper.SetDefault("kafka.session_timeout_ms", 10000)
+	viper.SetDefault("kafka.heartbeat_interval_ms", 3000)
+
+	// consumer
+	viper.SetDefault("consumer.topic", "orders")
+	viper.SetDefault("consumer.worker_count", 4)
+	viper.SetDefault("consumer.job_buffer_size", 8)
+	viper.SetDefault("consumer.max_retries", 3)
+	viper.SetDefault("consumer.retry_backoff", "250ms")
+
+	// health
+	viper.SetDefault("health.db_hp_interval", "5s")
+	viper.SetDefault("health.db_hp_timeout", "180s")
+
+	// Configure Viper
+	viper.SetConfigName("config")    // name of config file (without extension)
+	viper.SetConfigType("yaml")      // REQUIRED if the config file does not have the extension in the name
+	viper.AddConfigPath(".")         // look for config in the working directory
+	viper.AddConfigPath("./configs") // optionally look in a configs directory
+	viper.AddConfigPath("/etc/app/") // and other optional paths like thsi
+
+	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
+	viper.AutomaticEnv()
+
+	// Attempt to read the config file if it exists
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			// Config file not found; ignore err if we have env vars
+		} else {
+			// Config file was found but another err
+			return nil, fmt.Errorf("Failed to read config file: %w", err)
 		}
 	}
 
-	portStr := os.Getenv("HTTP_SERVER_PORT")
-	if portStr == "" {
-		portStr = "8080"
-	}
-	_, err := strconv.Atoi(portStr)
-	if err != nil {
-		return nil, err
+	var cfg Config
+	if err := viper.Unmarshal(&cfg); err != nil {
+		return nil, fmt.Errorf("Failed to unmarshal config: %w", err)
 	}
 
-	dsn := fmt.Sprintf(
-		"postgres://%s:%s@%s:%s/%s?sslmode=disable",
-		strings.TrimSpace(os.Getenv("POSTGRES_USER")),
-		strings.TrimSpace(os.Getenv("POSTGRES_PASSWORD")),
-		strings.TrimSpace(os.Getenv("POSTGRES_HOST")),
-		strings.TrimSpace(os.Getenv("POSTGRES_PORT")),
-		strings.TrimSpace(os.Getenv("POSTGRES_DB")),
-	)
-
-	return &Config{
-		PostgresDSN:    dsn,
-		HTTPServerPort: ":" + portStr,
-		KafkaBrokers:   []string{os.Getenv("KAFKA_BROKERS")},
-		KafkaTopic:     os.Getenv("KAFKA_TOPIC"),
-		KafkaGroupID:   os.Getenv("KAFKA_GROUP_ID"),
-	}, nil
+	return &cfg, nil
 }

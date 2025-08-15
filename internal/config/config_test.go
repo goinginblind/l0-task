@@ -8,24 +8,24 @@ import (
 
 func TestLoad(t *testing.T) {
 	// Set environment variables for the test
-	t.Setenv("HTTP_SERVER_PORT", "8888")
-	t.Setenv("KAFKA_BROKERS", "kafka1:9092,kafka2:9092")
-	t.Setenv("KAFKA_TOPIC", "test_topic")
-	t.Setenv("KAFKA_GROUP_ID", "test_group")
+	t.Setenv("DATABASE_HOST", "test_host")
+	t.Setenv("DATABASE_PORT", "1234")
+	t.Setenv("DATABASE_USER", "no_usr")
+	t.Setenv("DATABASE_PASSWORD", "qwerty")
+	t.Setenv("DATABASE_DBNAME", "postgre")
+	t.Setenv("DATABASE_SSLMODE", "disable")
+	t.Setenv("DATABASE_MAX_CONNECTIONS", "10")
+	t.Setenv("DATABASE_MAX_IDLE_CONNS", "5")
 
-	t.Setenv("POSTGRES_USER", "test_user")
-	t.Setenv("POSTGRES_PASSWORD", "test_pass")
-	t.Setenv("POSTGRES_HOST", "test_host")
-	t.Setenv("POSTGRES_PORT", "test_port")
-	t.Setenv("POSTGRES_DB", "test_db")
-
-	cfg, err := Load()
+	cfg, err := LoadConfig()
 
 	assert.NoError(t, err)
 	assert.NotNil(t, cfg)
-	assert.Equal(t, "postgres://test_user:test_pass@test_host:test_port/test_db?sslmode=disable", cfg.PostgresDSN)
-	assert.Equal(t, ":8888", cfg.HTTPServerPort)
-	assert.Equal(t, []string{"kafka1:9092,kafka2:9092"}, cfg.KafkaBrokers)
-	assert.Equal(t, "test_topic", cfg.KafkaTopic)
-	assert.Equal(t, "test_group", cfg.KafkaGroupID)
+	assert.Equal(t, "test_host", cfg.Database.Host)
+	assert.Equal(t, "1234", cfg.Database.Port)
+	assert.Equal(t, "no_usr", cfg.Database.User)
+	assert.Equal(t, "qwerty", cfg.Database.Password)
+	assert.Equal(t, "postgre", cfg.Database.DBName)
+	assert.Equal(t, "disable", cfg.Database.SSLMode)
+	assert.Equal(t, 10, cfg.Database.MaxConnections)
 }
