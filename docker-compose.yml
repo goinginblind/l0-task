@@ -1,7 +1,7 @@
 services:
-  postgres-test:
+  postgres:
     image: postgres:17-alpine
-    container_name: test-orders-db
+    container_name: orders-l0-db
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -10,20 +10,20 @@ services:
     ports:
       - "${POSTGRES_PORT}:5432"
 
-  zookeeper-test:
+  zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
-    container_name: zookeeper
+    container_name: zookeeper-l0
     environment:
       ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT}
       ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME}
 
-  broker-test:
+  broker:
     image: confluentinc/cp-kafka:7.3.0
-    container_name: broker
+    container_name: broker-l0
     ports:
       - "${KAFKA_PORT}:9092"
     depends_on:
-      - zookeeper-test
+      - zookeeper
     environment:
       KAFKA_BROKER_ID: ${KAFKA_BROKER_ID}
       KAFKA_ZOOKEEPER_CONNECT: ${KAFKA_ZOOKEEPER_CONNECT}
