@@ -5,6 +5,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 )
 
@@ -23,12 +24,12 @@ type DBHealthChecker struct {
 }
 
 // NewDBHealthChecker creates a new DBHealthChecker. It does not start the monitoring.
-func NewDBHealthChecker(pinger Pinger, logger logger.Logger, checkInterval, checkTimeout time.Duration) *DBHealthChecker {
+func NewDBHealthChecker(pinger Pinger, logger logger.Logger, cfg config.HealthConfig) *DBHealthChecker {
 	return &DBHealthChecker{
 		pinger:        pinger,
 		logger:        logger,
-		checkInterval: checkInterval,
-		checkTimeout:  checkTimeout,
+		checkInterval: cfg.DBCheckInterval,
+		checkTimeout:  cfg.DBCheckTimeout,
 	}
 }
 
