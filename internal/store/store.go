@@ -11,8 +11,6 @@ import (
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
-
-	_ "github.com/lib/pq"
 )
 
 // DBStore is a database implementation of the OrderStore interface
@@ -34,6 +32,9 @@ func NewDBStore(db *sql.DB, logger logger.Logger) *DBStore {
 func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
+		if isConnectionError(err) {
+			return ErrConnectionFailed
+		}
 		return fmt.Errorf("beginning transaction: %w", err)
 	}
 	defer tx.Rollback()
@@ -46,6 +47,9 @@ func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 	).Scan(&orderID)
 	if err != nil {
 		// A duplicate insert check
+		if isConnectionError(err) {
+			return ErrConnectionFailed
+		}
 		var pgErr *pgconn.PgError
 		if errors.As(err, &pgErr) && pgErr.Code == pgerrcode.UniqueViolation {
 			return fmt.Errorf("%w: uid=%s", ErrAlreadyExists, o.OrderUID)
@@ -59,6 +63,9 @@ func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 		o.Delivery.Address, o.Delivery.Region, o.Delivery.Email,
 	)
 	if err != nil {
+		if isConnectionError(err) {
+			return ErrConnectionFailed
+		}
 		return fmt.Errorf("inserting delivery: %w", err)
 	}
 
@@ -69,6 +76,9 @@ func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 		o.Payment.GoodsTotal, o.Payment.CustomFee,
 	)
 	if err != nil {
+		if isConnectionError(err) {
+			return ErrConnectionFailed
+		}
 		return fmt.Errorf("inserting payment: %w", err)
 	}
 
@@ -79,6 +89,9 @@ func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 			item.Sale, item.Size, item.TotalPrice, item.NmID, item.Brand, item.Status,
 		)
 		if err != nil {
+			if isConnectionError(err) {
+				return ErrConnectionFailed
+			}
 			return fmt.Errorf("inserting item: %w", err)
 		}
 	}
