@@ -19,7 +19,11 @@ type Config struct {
 
 // HTTPServerConfig holds HTTP server-specific settings (port)
 type HTTPServerConfig struct {
-	Port string `mapstructure:"port"`
+	Port            string        `mapstructure:"port"`
+	ReadTimeout     time.Duration `mapstructure:"read_timeout_s"`
+	WriteTimeout    time.Duration `mapstructure:"write_timeout_s"`
+	IdleTimeout     time.Duration `mapstructure:"idle_timeout_s"`
+	ShutdownTimeout time.Duration `mapstructure:"shutdown_timeout"`
 }
 
 // KafkaConfig holds Kafka-specific settings
@@ -79,6 +83,10 @@ func LoadConfig() (*Config, error) {
 	// THE DEFAULTS ARE SET HERE (they're somewhat reasonable(i'd like to think so))
 	// http server
 	viper.SetDefault("http_server.port", "8080")
+	viper.SetDefault("http_server.read_timeout", "5s")
+	viper.SetDefault("http_server.write_timeout", "10s")
+	viper.SetDefault("http_server.idle_timeout", "120s")
+	viper.SetDefault("http_server.shutdown_timeout", "30s")
 
 	// db
 	viper.SetDefault("database.host", "localhost")
