@@ -3,7 +3,9 @@ package consumer
 import (
 	"context"
 	"sync"
+	"time"
 
+	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/pkg/health"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
@@ -17,47 +19,70 @@ type KafkaConsumer struct {
 	service       service.OrderService
 	logger        logger.Logger
 	healthChecker *health.DBHealthChecker
+	workerCount   int
+	jobBuffer     int
+	maxRetries    int           // passed to workers
+	retryBackoff  time.Duration // passed to workers
 }
 
 // NewKafkaConsumer creates a new KafkaConsumer.
-func NewKafkaConsumer(cfg *kafka.ConfigMap, topic string,
+func NewKafkaConsumer(kafCfg config.KafkaConfig, consCfg config.ConsumerConfig,
 	service service.OrderService, logger logger.Logger, hc *health.DBHealthChecker) (*KafkaConsumer, error) {
-	c, err := kafka.NewConsumer(cfg)
+	kafkaConfig := &kafka.ConfigMap{
+		"bootstrap.servers":     kafCfg.BootstrapServers,
+		"group.id":              kafCfg.ConsumerGroupID,
+		"auto.offset.reset":     kafCfg.AutoOffsetReset,
+		"enable.auto.commit":    kafCfg.EnableAutoCommit,
+		"isolation.level":       kafCfg.IsolationLevel,
+		"max.poll.interval.ms":  kafCfg.MaxPollIntervalMs,
+		"fetch.min.bytes":       kafCfg.MinFetchSizeBytes,
+		"fetch.max.bytes":       kafCfg.MaxFetchSizeBytes,
+		"session.timeout.ms":    kafCfg.SessionTimeoutMs,
+		"heartbeat.interval.ms": kafCfg.HeartbeatIntervalMs,
+	}
+	consumer, err := kafka.NewConsumer(kafkaConfig)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := c.Subscribe(topic, nil); err != nil {
+	if err := consumer.Subscribe(consCfg.Topic, nil); err != nil {
 		return nil, err
 	}
 
 	return &KafkaConsumer{
-		consumer:      c,
+		consumer:      consumer,
 		service:       service,
 		logger:        logger,
 		healthChecker: hc,
+		workerCount:   consCfg.WorkerCount,
+		jobBuffer:     consCfg.JobBufferSize,
+		maxRetries:    consCfg.MaxRetries,
+		retryBackoff:  consCfg.RetryBackoff,
 	}, nil
 }
 
 // Run starts the consumer loop
 func (kc *KafkaConsumer) Run(ctx context.Context) {
-	// TODO II: dont hardcode it
-	const workerCount = 4
-
-	jobs := make(chan *kafka.Message, workerCount*2) // <-- TODO II: buf size might need an upd
+	jobs := make(chan *kafka.Message, kc.jobBuffer*2)
 	var wg sync.WaitGroup
 
 	// workers
-	for i := range workerCount {
+	wDeps := workerDependencies{
+		service:       kc.service,
+		logger:        kc.logger,
+		consumer:      kc.consumer,
+		ctx:           ctx,
+		healthChecker: kc.healthChecker,
+	}
+
+	for i := range kc.workerCount {
 		wg.Add(1)
 		w := &worker{
-			id:            i,
-			service:       kc.service,
-			logger:        kc.logger,
-			consumer:      kc.consumer,
-			jobs:          jobs,
-			ctx:           ctx,
-			healthChecker: kc.healthChecker,
+			id:           i,
+			jobs:         jobs,
+			deps:         wDeps,
+			maxRetries:   kc.maxRetries,
+			retryBackoff: kc.retryBackoff,
 		}
 		go w.run(&wg)
 	}
