@@ -7,7 +7,6 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
-	"time"
 
 	"github.com/goinginblind/l0-task/internal/api"
 	"github.com/goinginblind/l0-task/internal/config"
@@ -16,11 +15,8 @@ import (
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
 	"github.com/goinginblind/l0-task/internal/store"
-	"github.com/joho/godotenv"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
-
-	"github.com/confluentinc/confluent-kafka-go/kafka"
 )
 
 func main() {
@@ -35,21 +31,14 @@ func main() {
 		}
 	}()
 
-	// Try to load .env
-	err = godotenv.Load(".env")
-	if err != nil {
-		log.Printf("fail to parse .env: %v\n", err)
-		log.Println("looking for the enviromental variables in the enviroment...")
-	}
-
 	// Load config
-	cfg, err := config.Load()
+	cfg, err := config.LoadConfig()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
 	// Connect to database
-	db, err := sql.Open("pgx", cfg.PostgresDSN)
+	db, err := sql.Open("pgx", cfg.Database.DSN())
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
@@ -61,29 +50,16 @@ func main() {
 	server := api.NewServer(orderService, logger)
 
 	// Create Kafka consumer
-	kafkaConfig := &kafka.ConfigMap{
-		"bootstrap.servers":     "localhost:9092",
-		"group.id":              "orders-consumer",
-		"auto.offset.reset":     "earliest",
-		"enable.auto.commit":    false,
-		"isolation.level":       "read_committed",
-		"max.poll.interval.ms":  300000, // 5 min
-		"fetch.min.bytes":       1,
-		"fetch.max.bytes":       1048576, // 1Mb
-		"session.timeout.ms":    10000,   // 10 sec
-		"heartbeat.interval.ms": 3000,    //3 sec
-	}
-	ctx, cancel := context.WithCancel(context.Background())
-	// TODO II: replace these hardcoded time intervals
-	hc := health.NewDBHealthChecker(db, logger, time.Second*5, time.Second*180)
-	kafkaConsumer, err := consumer.NewKafkaConsumer(kafkaConfig, "orders", orderService, logger, hc) // <- topic is hardcoded
+	hc := health.NewDBHealthChecker(db, logger, cfg.Health)
+	kafkaConsumer, err := consumer.NewKafkaConsumer(cfg.Kafka, cfg.Consumer, orderService, logger, hc)
 	if err != nil {
 		log.Fatalf("Failed to create kafka consumer: %v", err)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	// Start server and consumer
 	go hc.Start(ctx)
-	go server.Start(cfg.HTTPServerPort)
+	go server.Start(":" + cfg.HTTPServer.Port)
 	go kafkaConsumer.Run(ctx)
 
 	// Wait for shutdown signal
