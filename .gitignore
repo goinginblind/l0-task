@@ -3,12 +3,14 @@ bin
 
 # Mock jsons
 *mock*.json
+orders.json
 
 # Python venv
 .venv
 
 # Secrets
 .env
+config.yaml
 
 # My notes
 todo.md
