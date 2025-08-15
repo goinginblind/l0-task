@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -49,11 +50,13 @@ func New() (*App, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
+	db.SetMaxOpenConns(cfg.Database.MaxIdlingConnections)
+	db.SetMaxIdleConns(cfg.Database.MaxConnections) // TODO III: maybe add idling timeout
 
 	// Create store, service, and server
 	dbStore := store.NewDBStore(db, appLogger)
 	orderService := service.New(dbStore, appLogger)
-	server := api.NewServer(orderService, appLogger)
+	server := api.NewServer(orderService, appLogger, cfg.HTTPServer)
 
 	hc := health.NewDBHealthChecker(db, appLogger, cfg.Health)
 	kafkaConsumer, err := consumer.NewKafkaConsumer(cfg.Kafka, cfg.Consumer, orderService, appLogger, hc)
@@ -71,8 +74,7 @@ func New() (*App, error) {
 	}, nil
 }
 
-// Run, well, runs the whole app. It passes down to every layer
-// a context with cancel, which listens for a system call, upon recieving which the app terminates
+// Run runs the whole logic, the 'command center'
 func (a *App) Run() {
 	defer func() {
 		if err := a.logger.Sync(); err != nil {
@@ -81,15 +83,45 @@ func (a *App) Run() {
 		a.db.Close()
 	}()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	go a.hc.Start(ctx)
-	go a.server.Start(":" + a.cfg.HTTPServer.Port)
-	go a.consumer.Run(ctx)
+	var wg sync.WaitGroup
 
+	// The HTTP server starts
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		a.logger.Infow("Starting server on:" + a.cfg.HTTPServer.Port)
+		if err := a.server.Start(":" + a.cfg.HTTPServer.Port); err != nil {
+			a.logger.Fatalw("Failed to start the HTTP server", "error", err)
+		}
+	}()
+
+	// the consumer starts
+	ctx, cancel := context.WithCancel(context.Background())
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		a.logger.Infow("Starting kafka consumer")
+		a.consumer.Run(ctx)
+		a.logger.Infow("Stopping kafka consumer")
+	}()
+	go a.hc.Start(ctx)
+
+	// block til signal
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	<-sigChan
 
 	a.logger.Infow("Shutting down...")
-	cancel()
+
+	// proper server shutdown
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), a.cfg.HTTPServer.ShutdownTimeout)
+	defer shutdownCancel()
+
+	cancel() // exit the consumer loop
+	if err := a.server.Shutdown(shutdownCtx); err != nil {
+		a.logger.Errorw("HTTP server shutdown error: %v", err)
+	}
+
+	wg.Wait()
+	a.logger.Infow("Shutdown complete.")
 }
