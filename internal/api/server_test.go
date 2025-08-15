@@ -6,6 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/domain"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
@@ -36,7 +37,7 @@ func (m *MockOrderService) GetOrder(ctx context.Context, uid string) (*domain.Or
 
 func TestServer_orderHandler(t *testing.T) {
 	mockService, mockLogger := new(MockOrderService), logger.NewMockLogger()
-	server := NewServer(mockService, mockLogger)
+	server := NewServer(mockService, mockLogger, config.HTTPServerConfig{})
 
 	t.Run("success", func(t *testing.T) {
 		order := &domain.Order{OrderUID: "test-uid"}

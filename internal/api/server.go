@@ -1,39 +1,58 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
-	"log"
 	"net/http"
 	"strings"
 
+	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
 )
 
 // Server is the HTTP server.
 type Server struct {
-	service service.OrderService
-	logger  logger.Logger
+	service    service.OrderService
+	logger     logger.Logger
+	httpServer *http.Server
 }
 
 // NewServer creates a new Server.
-func NewServer(service service.OrderService, logger logger.Logger) *Server {
-	return &Server{
+func NewServer(service service.OrderService, logger logger.Logger, cfg config.HTTPServerConfig) *Server {
+	srv := &Server{
 		service: service,
 		logger:  logger,
 	}
+
+	// New server and handlers
+	mux := http.NewServeMux()
+	mux.HandleFunc("/orders/", srv.orderHandler)
+	srv.httpServer = &http.Server{
+		Handler:      mux,
+		ReadTimeout:  cfg.ReadTimeout,
+		WriteTimeout: cfg.WriteTimeout,
+		IdleTimeout:  cfg.IdleTimeout,
+	}
+
+	return srv
 }
 
-// Start starts the HTTP server.
-func (s *Server) Start(port string) {
-	http.HandleFunc("/orders/", s.orderHandler)
-	s.logger.Infow("Server listening", "port", port)
-	if err := http.ListenAndServe(port, nil); err != nil {
-		// TODO II: log.Fatal(err) are the places specifically marked
-		// to be refactored with retry/backoffs/gracefull restarts or shutdowns,
-		// so this log stays for now
-		log.Fatal(err)
+func (s *Server) Start(addr string) error {
+	s.httpServer.Addr = addr
+	s.logger.Infow("Server listening", "addr", addr)
+	// http.ErrServerClosed is a "good" error, returned after Shutdown,
+	// so we don't want to log it as a fatal error.
+	if err := s.httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		return err
 	}
+	return nil
+}
+
+// Shutdown gracefully shuts down the server.
+func (s *Server) Shutdown(ctx context.Context) error {
+	s.logger.Infow("Shutting down server...")
+	return s.httpServer.Shutdown(ctx)
 }
 
 func (s *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
@@ -56,6 +75,8 @@ func (s *Server) orderHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(order); err != nil {
+		// TODO: Differentiate between not found and other errors
 		http.Error(w, "Failed to encode order", http.StatusInternalServerError)
+		return
 	}
 }
