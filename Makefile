@@ -6,29 +6,13 @@ build:
 	go build -o bin/producer ./producer
 
 # Generate 100% valid JSON orders
-generate-orders:
+gen-o:
 	python3 gen_orders.py -n 600 --invalid-rate 0.0 -o orders.json
+# Run main containers 
+up: 
+	docker compose up -d postgres zookeeper broker
 
-# Run producer in background
-run-producer:
-	./bin/producer --file orders.json --rps 1
-
-# Run service in foreground
-run-service:
-	./bin/service 
-
-# run all tests no cache
-test:
-	go test -v ./... -count=1
-
-# run test containers
-up-t:
-	docker compose up -d postgres-test zookeeper-test broker-test
-
-# Alias for up_t, as these are the main dev containers
-up: up-t
-
-# migrate psql
+# migrate psql using goose; it wait for the psql to be up
 migrate:
 	@env $(shell grep -v '^#' $(ENV_FILE) | xargs) bash -c '\
 		while ! PGPASSWORD=$$POSTGRES_PASSWORD psql -h $$POSTGRES_HOST -p $$POSTGRES_PORT -U $$POSTGRES_USER -d $$POSTGRES_DB -c "\q" >/dev/null 2>&1; do \
@@ -38,9 +22,22 @@ migrate:
 		echo "Postgres is ready - running migrations"; \
 		goose -dir sql postgres "postgres://$$POSTGRES_USER:$$POSTGRES_PASSWORD@$$POSTGRES_HOST:$$POSTGRES_PORT/$$POSTGRES_DB?sslmode=disable" up; \
 	'
+	
+# sets up everything before you run the producer and the service
+dev: build gen-o up migrate
 
+# Run producer in background
+run-p:
+	./bin/producer --file orders.json --rps 1
 
-dev: build generate-orders up migrate run-producer run-service
+# Run service in foreground
+run-s:
+	./bin/service 
+
+# run all tests no cache
+test:
+	go test -v ./... -count=1
+
 
 # tearing down and cleanup
 clean:
