@@ -74,6 +74,7 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		processErr = w.deps.service.ProcessNewOrder(w.deps.ctx, &order)
 		if processErr == nil {
 			// success == commit, exit
+			w.deps.logger.Infow("order successfully processed", "worker_id", w.id, "order_uid", order.OrderUID)
 			w.commit(msg)
 			return
 		}
@@ -131,8 +132,7 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		w.commit(msg)
 		return
 	}
-	// success == commit
-	w.deps.logger.Debugw("order successfully processed", "worker_id", w.id, "order_uid", order.OrderUID)
+
 	w.commit(msg)
 }
 
