@@ -133,8 +133,11 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 					if !isPaused {
 						jobs <- e
 					}
+				case kafka.AssignedPartitions:
+					kc.logger.Infow("Partitions assigned", "partitions", e.Partitions)
+				case kafka.RevokedPartitions:
+					kc.logger.Infow("Partitions revoked", "partitions", e.Partitions)
 				case kafka.Error:
-					// TODO III: handle AssignedPartitions/RevokedPartitions events here
 					kc.logger.Errorw("Kafka error", "error", e, "is_fatal", e.IsFatal())
 				}
 			}

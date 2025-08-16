@@ -50,10 +50,10 @@ func (s *CachingOrderService) GetOrder(ctx context.Context, uid string) (*domain
 // adds the new order to the cache.
 func (s *CachingOrderService) ProcessNewOrder(ctx context.Context, order *domain.Order) error {
 	err := s.next.ProcessNewOrder(ctx, order)
-	if err == nil {
-		s.logger.Infow("Adding new order to cache", "order_uid", order.OrderUID)
-		s.cache.Insert(order)
-	}
+	//if err == nil {
+	//	s.logger.Infow("Adding new order to cache", "order_uid", order.OrderUID)
+	//	s.cache.Insert(order)
+	//}
 	return err
 }
 
