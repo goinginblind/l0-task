@@ -107,4 +107,31 @@ const (
 		WHERE
 			o.order_uid = $1;
 	`
+
+	// Retrieves a full order object by joining the necessary tables.
+	// This query can return multiple rows for a single order if it has multiple items.
+	qRetrieveOrder = `
+		SELECT
+			-- orders
+			o.order_uid, o.track_number AS order_track_number, o.entry, o.locale, o.internal_signature, o.customer_id, 
+			o.delivery_service, o.shard_key, o.sm_id, o.date_created, o.oof_shard,
+			-- delivery
+			d.name AS delivery_name, d.phone, d.zip, d.city, d.address, d.region, d.email,
+			-- payment
+			p.transaction, p.request_id, p.currency, p.provider, p.amount, 
+			p.payment_dt, p.bank, p.delivery_cost, p.goods_total, p.custom_fee,
+			-- item
+			i.chrt_id, i.track_number AS item_track_number, i.price, i.rid, i.name AS item_name, 
+			i.sale, i.size, i.total_price, i.nm_id, i.brand, i.status
+		FROM
+			orders o
+		JOIN
+			deliveries d ON o.id = d.order_id
+		JOIN
+			payments p ON o.id = p.order_id
+		LEFT JOIN
+			items i ON o.id = i.order_id
+		WHERE
+			o.order_uid = $1;
+	`
 )

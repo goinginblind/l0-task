@@ -3,7 +3,6 @@ package store
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -99,21 +98,55 @@ func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 	return tx.Commit()
 }
 
-// Get retrieves a single order from the database as a JSON object
+// Get retrieves a single order from the database by scanning the raw columns.
+// It handles the one-to-many relationship between an order and its items.
 func (s *DBStore) Get(ctx context.Context, orderUID string) (*domain.Order, error) {
-	var jsonBytes []byte
-	err := s.db.QueryRowContext(ctx, qRetrieveJSON, orderUID).Scan(&jsonBytes)
+	rows, err := s.db.QueryContext(ctx, qRetrieveOrder, orderUID)
 	if err != nil {
-		if errors.Is(err, sql.ErrNoRows) {
-			return nil, ErrNotFound
+		if isConnectionError(err) {
+			return nil, ErrConnectionFailed
 		}
 		return nil, fmt.Errorf("querying for order %s: %w", orderUID, err)
 	}
+	defer rows.Close()
 
-	var order domain.Order
-	if err := json.Unmarshal(jsonBytes, &order); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal order %s: %w", orderUID, err)
+	var order *domain.Order
+	for rows.Next() {
+		// For the first row, we initialize the order and scan all its details.
+		if order == nil {
+			order = &domain.Order{}
+		}
+		var item domain.Item
+		err := rows.Scan(
+			// Order fields
+			&order.OrderUID, &order.TrackNumber, &order.Entry, &order.Locale, &order.InternalSignature, &order.CustomerID,
+			&order.DeliveryService, &order.ShardKey, &order.SmID, &order.DateCreated, &order.OofShard,
+			// Delivery fields
+			&order.Delivery.Name, &order.Delivery.Phone, &order.Delivery.Zip, &order.Delivery.City, &order.Delivery.Address, &order.Delivery.Region, &order.Delivery.Email,
+			// Payment fields
+			&order.Payment.Transaction, &order.Payment.RequestID, &order.Payment.Currency, &order.Payment.Provider, &order.Payment.Amount,
+			&order.Payment.PaymentDt, &order.Payment.Bank, &order.Payment.DeliveryCost, &order.Payment.GoodsTotal, &order.Payment.CustomFee,
+			// Item fields
+			&item.ChrtID, &item.TrackNumber, &item.Price, &item.Rid, &item.Name,
+			&item.Sale, &item.Size, &item.TotalPrice, &item.NmID, &item.Brand, &item.Status,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("scanning order %s: %w", orderUID, err)
+		}
+		order.Items = append(order.Items, item)
 	}
 
-	return &order, nil
+	if err = rows.Err(); err != nil {
+		if isConnectionError(err) {
+			return nil, ErrConnectionFailed
+		}
+		return nil, fmt.Errorf("iterating order rows for %s: %w", orderUID, err)
+	}
+
+	// If order is still nil, it means no rows were returned.
+	if order == nil {
+		return nil, ErrNotFound
+	}
+
+	return order, nil
 }
