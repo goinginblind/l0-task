@@ -15,6 +15,8 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
+// TODO: these tests are depricated
+
 // MockOrderService is a mock implementation of the OrderService.
 type MockOrderService struct {
 	mock.Mock
@@ -37,7 +39,7 @@ func (m *MockOrderService) GetOrder(ctx context.Context, uid string) (*domain.Or
 
 func TestServer_orderHandler(t *testing.T) {
 	mockService, mockLogger := new(MockOrderService), logger.NewMockLogger()
-	server := NewServer(mockService, mockLogger, config.HTTPServerConfig{})
+	server, _ := NewServer(mockService, mockLogger, config.HTTPServerConfig{})
 
 	t.Run("success", func(t *testing.T) {
 		order := &domain.Order{OrderUID: "test-uid"}
@@ -46,7 +48,7 @@ func TestServer_orderHandler(t *testing.T) {
 		req := httptest.NewRequest("GET", "/orders/test-uid", nil)
 		rr := httptest.NewRecorder()
 
-		server.orderHandler(rr, req)
+		server.orderView(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 		assert.Contains(t, rr.Body.String(), "test-uid")
@@ -59,7 +61,7 @@ func TestServer_orderHandler(t *testing.T) {
 		req := httptest.NewRequest("GET", "/orders/not-found-uid", nil)
 		rr := httptest.NewRecorder()
 
-		server.orderHandler(rr, req)
+		server.orderView(rr, req)
 
 		assert.Equal(t, http.StatusNotFound, rr.Code)
 		mockService.AssertExpectations(t)

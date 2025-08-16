@@ -68,7 +68,10 @@ func New() (*App, error) {
 		appLogger.Warnw(err.Error())
 	}
 
-	server := api.NewServer(cachingService, appLogger, cfg.HTTPServer)
+	server, err := api.NewServer(cachingService, appLogger, cfg.HTTPServer)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create server: %w", err)
+	}
 
 	hc := health.NewDBHealthChecker(db, appLogger, cfg.Health)
 	kafkaConsumer, err := consumer.NewKafkaConsumer(cfg.Kafka, cfg.Consumer, cachingService, appLogger, hc)

@@ -1,0 +1,19 @@
+{{define "base"}}
+<!doctype html>
+<html lang='en'>
+<head>
+    <meta charset='utf-8'>
+    <title>{{template "title" .}} - Order Viewer</title>
+    <link rel='stylesheet' href='/static/css/main.css'>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Google+Sans:wght@300;400;500&family=Roboto+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+</head>
+<body>
+    <main>
+        {{template "main" .}}
+    </main>
+    <script src='/static/js/main.js' type='text/javascript'></script>
+</body>
+</html>
+{{end}}
