@@ -43,21 +43,27 @@ type KafkaConfig struct {
 
 // DatabaseConfig holds database-specific settings.
 type DatabaseConfig struct {
-	User                 string `mapstructure:"user"`
-	Password             string `mapstructure:"password"`
-	Host                 string `mapstructure:"host"`
-	Port                 string `mapstructure:"port"`
-	DBName               string `mapstructure:"dbname"`
-	SSLMode              string `mapstructure:"sslmode"`
-	MaxConnections       int    `mapstructure:"max_connections"`
-	MaxIdlingConnections int    `mapstructure:"max_idle_conns"`
+	User                 string        `mapstructure:"user"`
+	Password             string        `mapstructure:"password"`
+	Host                 string        `mapstructure:"host"`
+	Port                 string        `mapstructure:"port"`
+	DBName               string        `mapstructure:"dbname"`
+	SSLMode              string        `mapstructure:"sslmode"`
+	MaxConnections       int           `mapstructure:"max_connections"`
+	MaxIdlingConnections int           `mapstructure:"max_idle_conns"`
+	ConnectTimeout       time.Duration `mapstructure:"connect_timeout"`
+	StatementTimeout     time.Duration `mapstructure:"statement_timeout"`
+	ConnMaxLifetime      time.Duration `mapstructure:"conn_max_lifetime"`
+	ConnMaxIdleTime      time.Duration `mapstructure:"conn_max_idle_time"`
 }
 
 // DSN returns a concatenated dsn
 // string consisting of the configs db user, pass, host, etc.
 func (c DatabaseConfig) DSN() string {
-	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=%s",
+	return fmt.Sprintf(
+		"postgres://%s:%s@%s:%s/%s?sslmode=%s&connect_timeout=%d",
 		c.User, c.Password, c.Host, c.Port, c.DBName, c.SSLMode,
+		int(c.ConnectTimeout.Seconds()),
 	)
 }
 
@@ -104,6 +110,10 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("database.sslmode", "disable")
 	viper.SetDefault("database.max_connections", 10)
 	viper.SetDefault("database.max_idle_conns", 5)
+	viper.SetDefault("database.connect_timeout", "10s")
+	viper.SetDefault("database.statement_timeout", "30s")
+	viper.SetDefault("database.conn_max_lifetime", "30m")
+	viper.SetDefault("database.conn_max_idle_time", "10m")
 
 	// Kafka
 	viper.SetDefault("kafka.bootstrap_servers", "localhost:9092")

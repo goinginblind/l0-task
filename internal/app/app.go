@@ -52,7 +52,9 @@ func New() (*App, error) {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
 	db.SetMaxOpenConns(cfg.Database.MaxIdlingConnections)
-	db.SetMaxIdleConns(cfg.Database.MaxConnections) // TODO III: maybe add idling timeout
+	db.SetMaxIdleConns(cfg.Database.MaxConnections)
+	db.SetConnMaxLifetime(cfg.Database.ConnMaxLifetime)
+	db.SetConnMaxIdleTime(cfg.Database.ConnMaxIdleTime)
 
 	// Create store, service, and server
 	dbStore := store.NewDBStore(db, appLogger)
