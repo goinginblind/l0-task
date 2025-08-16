@@ -6,7 +6,7 @@ build:
 	go build -o bin/producer ./producer
 
 # Generate 100% valid JSON orders
-gen-o:
+gen:
 	python3 gen_orders.py -n 600 --invalid-rate 0.0 -o orders.json
 # Run main containers 
 up: 
@@ -27,11 +27,11 @@ migrate:
 dev: build gen-o up migrate
 
 # Run producer in background
-run-p:
+runp:
 	./bin/producer --file orders.json --rps 1
 
 # Run service in foreground
-run-s:
+runs:
 	./bin/service 
 
 # run all tests no cache
