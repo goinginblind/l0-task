@@ -23,9 +23,20 @@ func (m *MockOrderStore) Insert(ctx context.Context, order *domain.Order) error 
 	return args.Error(0)
 }
 
-func (m *MockOrderStore) Get(ctx context.Context, uid string) (*domain.Order, error) {
+func (m *MockOrderStore) GetOrder(ctx context.Context, uid string) (*domain.Order, error) {
 	args := m.Called(ctx, uid)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
 	return args.Get(0).(*domain.Order), args.Error(1)
+}
+
+func (m *MockOrderStore) GetLatestOrders(ctx context.Context, limit int) ([]*domain.Order, error) {
+	args := m.Called(ctx, limit)
+	if args.Get(0) == nil {
+		return nil, args.Error(1)
+	}
+	return args.Get(0).([]*domain.Order), args.Error(1)
 }
 
 func TestOrderService_ProcessNewOrder(t *testing.T) {
@@ -115,7 +126,7 @@ func TestOrderService_GetOrder(t *testing.T) {
 	order := &domain.Order{OrderUID: uid}
 
 	t.Run("success", func(t *testing.T) {
-		mockStore.On("Get", ctx, uid).Return(order, nil).Once()
+		mockStore.On("GetOrder", ctx, uid).Return(order, nil).Once()
 
 		retrievedOrder, err := service.GetOrder(ctx, uid)
 
@@ -125,7 +136,7 @@ func TestOrderService_GetOrder(t *testing.T) {
 	})
 
 	t.Run("not found", func(t *testing.T) {
-		mockStore.On("Get", ctx, uid).Return((*domain.Order)(nil), errors.New("not found")).Once()
+		mockStore.On("GetOrder", ctx, uid).Return(nil, errors.New("not found")).Once()
 
 		_, err := service.GetOrder(ctx, uid)
 

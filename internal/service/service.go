@@ -12,7 +12,8 @@ import (
 // It's implemeneted by the database layer (the store), describes the 'save' and 'load' contract.
 type OrderStore interface {
 	Insert(context.Context, *domain.Order) error
-	Get(context.Context, string) (*domain.Order, error)
+	GetOrder(context.Context, string) (*domain.Order, error)
+	GetLatestOrders(context.Context, int) ([]*domain.Order, error)
 }
 
 // OrderService defines the interface for handling orders.
@@ -54,7 +55,7 @@ func (s *orderService) ProcessNewOrder(ctx context.Context, order *domain.Order)
 // GetOrder retrieves an order by its UID. Currently looks like a wrapper. And it is.
 // Later won't be. Caching, baby. Allows the buisness logic of retrieving an order to be pretty && clean.
 func (s *orderService) GetOrder(ctx context.Context, uid string) (*domain.Order, error) {
-	order, err := s.store.Get(ctx, uid)
+	order, err := s.store.GetOrder(ctx, uid)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get order with uid '%s': %w", uid, err)
 	}
