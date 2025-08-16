@@ -54,6 +54,7 @@ func NewServer(service service.OrderService, logger logger.Logger, cfg config.HT
 	return srv, nil
 }
 
+// Start the server
 func (s *Server) Start(addr string) error {
 	s.httpServer.Addr = addr
 	s.logger.Infow("Server listening", "addr", addr)
@@ -69,14 +70,20 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	return s.httpServer.Shutdown(ctx)
 }
 
+// Home page handler
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" && r.URL.Path != "/home" {
+	if r.URL.Path == "/" {
+		http.Redirect(w, r, "/home", http.StatusFound)
+		return
+	}
+	if r.URL.Path != "/home" {
 		http.NotFound(w, r)
 		return
 	}
 	s.render(w, r, http.StatusOK, "home.tmpl", nil)
 }
 
+// order page handler
 func (s *Server) orderView(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, http.StatusText(http.StatusMethodNotAllowed), http.StatusMethodNotAllowed)
@@ -95,7 +102,7 @@ func (s *Server) orderView(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	data := map[string]interface{}{
+	data := map[string]any{
 		"OrderUID":   uid,
 		"OrderFound": order != nil,
 		"Order":      order,
@@ -109,6 +116,8 @@ func (s *Server) orderView(w http.ResponseWriter, r *http.Request) {
 	s.render(w, r, status, "order.tmpl", data)
 }
 
+// render the template: its usueless actually and couldve been doen w/o templating
+// but it is what it is...
 func (s *Server) render(w http.ResponseWriter, r *http.Request, status int, page string, data interface{}) {
 	ts, ok := s.templateCache[page]
 	if !ok {

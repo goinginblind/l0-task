@@ -1,22 +1,69 @@
 {{define "title"}}Order #{{.OrderUID}}{{end}}
 {{define "main"}}
-<div class="container">
-    <div class="card">
+    <div class="order-details-card">
         <a href="/home" class="back-link">&larr; Back to search</a>
-        <h1>Order Details</h1>
         {{if .OrderFound}}
-        <h2>UID: {{.OrderUID}}</h2>
-        <div class="json-container">
-            <pre><code id="json-content"></code></pre>
+        <h2 style="text-align: left; margin-bottom: 22px;"><strong>Order: {{.OrderUID}}</strong></h2>
+
+        <p><strong>Track Number:</strong> {{.Order.TrackNumber}}</p>
+        <p><strong>Entry:</strong> {{.Order.Entry}}</p>
+        <p><strong>Locale:</strong> {{.Order.Locale}}</p>
+        <p><strong>Customer ID:</strong> {{.Order.CustomerID}}</p>
+        <p><strong>Delivery Service:</strong> {{.Order.DeliveryService}}</p>
+        <p><strong>Shard Key:</strong> {{.Order.ShardKey}}</p>
+        <p><strong>SM ID:</strong> {{.Order.SmID}}</p>
+        <p><strong>Date Created:</strong> {{.Order.DateCreated}}</p>
+        <p><strong>OOF Shard:</strong> {{.Order.OofShard}}</p>
+
+        <button class="toggle-button" data-target="delivery-content">Delivery Details</button>
+        <div id="delivery-content" class="collapsible-content">
+            <p><strong>Name:</strong> {{.Order.Delivery.Name}}</p>
+            <p><strong>Phone:</strong> {{.Order.Delivery.Phone}}</p>
+            <p><strong>Zip:</strong> {{.Order.Delivery.Zip}}</p>
+            <p><strong>City:</strong> {{.Order.Delivery.City}}</p>
+            <p><strong>Address:</strong> {{.Order.Delivery.Address}}</p>
+            <p><strong>Region:</strong> {{.Order.Delivery.Region}}</p>
+            <p><strong>Email:</strong> {{.Order.Delivery.Email}}</p>
         </div>
-        <script>
-            const jsonData = {{.Order}};
-            document.getElementById('json-content').innerHTML = syntaxHighlight(JSON.stringify(jsonData, undefined, 2));
-        </script>
+
+        <button class="toggle-button" data-target="payment-content">Payment Details</button>
+        <div id="payment-content" class="collapsible-content">
+            <p><strong>Transaction:</strong> {{.Order.Payment.Transaction}}</p>
+            <p><strong>Request ID:</strong> {{.Order.Payment.RequestID}}</p>
+            <p><strong>Currency:</strong> {{.Order.Payment.Currency}}</p>
+            <p><strong>Provider:</strong> {{.Order.Payment.Provider}}</p>
+            <p><strong>Amount:</strong> {{.Order.Payment.Amount}}</p>
+            <p><strong>Payment Date:</strong> {{.Order.Payment.PaymentDt}}</p>
+            <p><strong>Bank:</strong> {{.Order.Payment.Bank}}</p>
+            <p><strong>Delivery Cost:</strong> {{.Order.Payment.DeliveryCost}}</p>
+            <p><strong>Goods Total:</strong> {{.Order.Payment.GoodsTotal}}</p>
+            <p><strong>Custom Fee:</strong> {{.Order.Payment.CustomFee}}</p>
+        </div>
+
+        <button class="toggle-button" data-target="items-content">Items ({{len .Order.Items}})</button>
+        <div id="items-content" class="collapsible-content">
+            <div class="items-container">
+                {{range .Order.Items}}
+                <div class="item-card">
+                    <p><strong>Chrt ID:</strong> {{.ChrtID}}</p>
+                    <p><strong>Track Number:</strong> {{.TrackNumber}}</p>
+                    <p><strong>Price:</strong> {{.Price}}</p>
+                    <p><strong>RID:</strong> {{.Rid}}</p>
+                    <p><strong>Name:</strong> {{.Name}}</p>
+                    <p><strong>Sale:</strong> {{.Sale}}</p>
+                    <p><strong>Size:</strong> {{.Size}}</p>
+                    <p><strong>Total Price:</strong> {{.TotalPrice}}</p>
+                    <p><strong>NM ID:</strong> {{.NmID}}</p>
+                    <p><strong>Brand:</strong> {{.Brand}}</p>
+                    <p><strong>Status:</strong> {{.Status}}</p>
+                </div>
+                {{end}}
+            </div>
+        </div>
+
         {{else}}
-        <h2>Order not found</h2>
-        <p>The order with UID '{{.OrderUID}}' could not be found.</p>
+        <h2 style="text-align: left; margin-bottom: 20px;">Order not found</h2>
+        <p style="text-align: left;">The order with UID '{{.OrderUID}}' could not be found.</p>
         {{end}}
     </div>
-</div>
 {{end}}
