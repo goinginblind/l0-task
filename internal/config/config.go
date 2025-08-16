@@ -15,6 +15,7 @@ type Config struct {
 	Kafka      KafkaConfig      `mapstructure:"kafka"`
 	Health     HealthConfig     `mapstructure:"health"`
 	Consumer   ConsumerConfig   `mapstructure:"consumer"`
+	Cache      CacheConfig      `mapstructure:"cache"`
 }
 
 // HTTPServerConfig holds HTTP server-specific settings (port)
@@ -75,6 +76,12 @@ type ConsumerConfig struct {
 	RetryBackoff  time.Duration `mapstructure:"retry_backoff"`
 }
 
+type CacheConfig struct {
+	EntrySizeCap   int `mapstructure:"entry_size_cap"` // in bytes
+	EntryAmountCap int `mapstructure:"entry_amount_cap"`
+	PreloadSize    int `mapstructure:"preload_size"`
+}
+
 // LoadConfig reads configuration from file and environment variables:
 //   - first it loads defaults
 //   - reads a .yaml file if there's one, overwrites the above
@@ -120,6 +127,11 @@ func LoadConfig() (*Config, error) {
 	// health
 	viper.SetDefault("health.db_hp_interval", "5s")
 	viper.SetDefault("health.db_hp_timeout", "180s")
+
+	// cache
+	viper.SetDefault("cache.entry_size_cap", 1_048_576) // <-- 1Mb
+	viper.SetDefault("cache.entry_amount_cap", 500)
+	viper.SetDefault("cache.preload_size", 250)
 
 	// Configure Viper
 	viper.SetConfigName("config")    // name of config file (without extension)

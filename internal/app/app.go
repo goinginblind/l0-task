@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"sync"
 	"syscall"
+	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 
@@ -56,10 +57,19 @@ func New() (*App, error) {
 	// Create store, service, and server
 	dbStore := store.NewDBStore(db, appLogger)
 	orderService := service.New(dbStore, appLogger)
-	server := api.NewServer(orderService, appLogger, cfg.HTTPServer)
+
+	// Decorate the service with cache and try to preload it
+	cachingService := service.NewCachingOrderService(orderService, dbStore, appLogger, cfg.Cache.EntryAmountCap, cfg.Cache.EntrySizeCap)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := cachingService.Preload(ctx, cfg.Cache.PreloadSize); err != nil {
+		appLogger.Warnw(err.Error())
+	}
+
+	server := api.NewServer(cachingService, appLogger, cfg.HTTPServer)
 
 	hc := health.NewDBHealthChecker(db, appLogger, cfg.Health)
-	kafkaConsumer, err := consumer.NewKafkaConsumer(cfg.Kafka, cfg.Consumer, orderService, appLogger, hc)
+	kafkaConsumer, err := consumer.NewKafkaConsumer(cfg.Kafka, cfg.Consumer, cachingService, appLogger, hc)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create kafka consumer: %w", err)
 	}
