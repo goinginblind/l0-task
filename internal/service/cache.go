@@ -32,11 +32,11 @@ func NewCachingOrderService(next OrderService, store OrderStore, logger logger.L
 func (s *CachingOrderService) GetOrder(ctx context.Context, uid string) (*domain.Order, error) {
 	order, found := s.cache.Get(uid)
 	if found {
-		s.logger.Debugw("Cache hit", "order_uid", uid)
+		s.logger.Infow("Cache hit", "order_uid", uid)
 		return order, nil
 	}
 
-	s.logger.Debugw("Cache miss", "order_uid", uid)
+	s.logger.Infow("Cache miss", "order_uid", uid)
 	order, err := s.next.GetOrder(ctx, uid)
 	if err != nil {
 		return nil, err
