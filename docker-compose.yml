@@ -32,3 +32,14 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR}
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: ${KAFKA_TRANSACTION_STATE_LOG_MIN_ISR}
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR}
+
+  postgres-test:
+    image: postgres:17-alpine
+    container_name: orders-test-db
+    restart: always
+    environment:
+      POSTGRES_USER: "test_user"
+      POSTGRES_PASSWORD: "test_pass"
+      POSTGRES_DB: "test_orders_db"
+    ports:
+      - "5433:5432"
