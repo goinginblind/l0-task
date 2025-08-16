@@ -149,7 +149,7 @@ func TestDBStore_Integration(t *testing.T) {
 		require.NoError(t, err)
 
 		// Get the order back
-		retrievedOrder, err := testStore.Get(ctx, order.OrderUID)
+		retrievedOrder, err := testStore.GetOrder(ctx, order.OrderUID)
 		require.NoError(t, err)
 		require.NotNil(t, retrievedOrder)
 
@@ -160,5 +160,30 @@ func TestDBStore_Integration(t *testing.T) {
 		require.Equal(t, len(order.Items), len(retrievedOrder.Items))
 		require.Equal(t, order.Items[0].ChrtID, retrievedOrder.Items[0].ChrtID)
 		require.True(t, order.DateCreated.Equal(retrievedOrder.DateCreated), "timestamps should be equal")
+	})
+
+	t.Run("GetLatestOrders", func(t *testing.T) {
+		// Insert more orders to test latest N
+		order2 := *order
+		order2.OrderUID = "testuid456"
+		order2.TrackNumber = "trackno2"
+		order2.DateCreated = time.Now().UTC().Add(time.Minute).Truncate(time.Second)
+		err = testStore.Insert(ctx, &order2)
+		require.NoError(t, err)
+
+		order3 := *order
+		order3.OrderUID = "testuid789"
+		order3.TrackNumber = "trackno3"
+		order3.DateCreated = time.Now().UTC().Add(2 * time.Minute).Truncate(time.Second)
+		err = testStore.Insert(ctx, &order3)
+		require.NoError(t, err)
+
+		latestOrders, err := testStore.GetLatestOrders(ctx, 2)
+		require.NoError(t, err)
+		require.Len(t, latestOrders, 2)
+
+		// The latest order should be order3, then order2
+		require.Equal(t, order3.OrderUID, latestOrders[0].OrderUID)
+		require.Equal(t, order2.OrderUID, latestOrders[1].OrderUID)
 	})
 }

@@ -3,6 +3,7 @@ package store
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 
@@ -100,53 +101,59 @@ func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 
 // Get retrieves a single order from the database by scanning the raw columns.
 // It handles the one-to-many relationship between an order and its items.
-func (s *DBStore) Get(ctx context.Context, orderUID string) (*domain.Order, error) {
-	rows, err := s.db.QueryContext(ctx, qRetrieveOrder, orderUID)
+//
+// Right now it asks the db for a JSON, then unmarshals and returns an order struct
+func (s *DBStore) GetOrder(ctx context.Context, orderUID string) (*domain.Order, error) {
+	var jsonBytes []byte
+	err := s.db.QueryRowContext(ctx, qRetrieveJSON, orderUID).Scan(&jsonBytes)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, ErrNotFound
+		}
+		return nil, fmt.Errorf("querying for order %s: %w", orderUID, err)
+	}
+
+	var order domain.Order
+	if err := json.Unmarshal(jsonBytes, &order); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal order %s: %w", orderUID, err)
+	}
+
+	return &order, nil
+}
+
+// GetLatestOrders returns the last updated 'amount' of orders.
+//
+// As of now, the db is asked to assemble JSONS and the function handles unmarshaling them into structs
+func (s *DBStore) GetLatestOrders(ctx context.Context, amount int) ([]*domain.Order, error) {
+	rows, err := s.db.QueryContext(ctx, qGetLatestOrdersAsJSON, amount)
 	if err != nil {
 		if isConnectionError(err) {
 			return nil, ErrConnectionFailed
 		}
-		return nil, fmt.Errorf("querying for order %s: %w", orderUID, err)
+		return nil, fmt.Errorf("querying for latest orders: %w", err)
 	}
 	defer rows.Close()
 
-	var order *domain.Order
+	var orders []*domain.Order
 	for rows.Next() {
-		// For the first row, we initialize the order and scan all its details.
-		if order == nil {
-			order = &domain.Order{}
+		var orderJSON []byte
+		if err := rows.Scan(&orderJSON); err != nil {
+			return nil, fmt.Errorf("scanning latest order json: %w", err)
 		}
-		var item domain.Item
-		err := rows.Scan(
-			// Order fields
-			&order.OrderUID, &order.TrackNumber, &order.Entry, &order.Locale, &order.InternalSignature, &order.CustomerID,
-			&order.DeliveryService, &order.ShardKey, &order.SmID, &order.DateCreated, &order.OofShard,
-			// Delivery fields
-			&order.Delivery.Name, &order.Delivery.Phone, &order.Delivery.Zip, &order.Delivery.City, &order.Delivery.Address, &order.Delivery.Region, &order.Delivery.Email,
-			// Payment fields
-			&order.Payment.Transaction, &order.Payment.RequestID, &order.Payment.Currency, &order.Payment.Provider, &order.Payment.Amount,
-			&order.Payment.PaymentDt, &order.Payment.Bank, &order.Payment.DeliveryCost, &order.Payment.GoodsTotal, &order.Payment.CustomFee,
-			// Item fields
-			&item.ChrtID, &item.TrackNumber, &item.Price, &item.Rid, &item.Name,
-			&item.Sale, &item.Size, &item.TotalPrice, &item.NmID, &item.Brand, &item.Status,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("scanning order %s: %w", orderUID, err)
+
+		var order domain.Order
+		if err := json.Unmarshal(orderJSON, &order); err != nil {
+			return nil, fmt.Errorf("unmarshaling latest order json: %w", err)
 		}
-		order.Items = append(order.Items, item)
+		orders = append(orders, &order)
 	}
 
 	if err = rows.Err(); err != nil {
 		if isConnectionError(err) {
 			return nil, ErrConnectionFailed
 		}
-		return nil, fmt.Errorf("iterating order rows for %s: %w", orderUID, err)
+		return nil, fmt.Errorf("iterating latest order rows: %w", err)
 	}
 
-	// If order is still nil, it means no rows were returned.
-	if order == nil {
-		return nil, ErrNotFound
-	}
-
-	return order, nil
+	return orders, nil
 }
