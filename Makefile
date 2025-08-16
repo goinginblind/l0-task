@@ -7,7 +7,7 @@ build:
 
 # Generate 100% valid JSON orders
 gen:
-	python3 gen_orders.py -n 600 --invalid-rate 0.0 -o orders.json
+	python3 gen_orders.py -n 600 --invalid-rate 0.33 -o orders.json
 # Run main containers 
 up: 
 	docker compose up -d postgres zookeeper broker
@@ -24,7 +24,7 @@ migrate:
 	'
 	
 # sets up everything before you run the producer and the service
-dev: build gen-o up migrate
+setup: build gen up migrate
 
 # Run producer in background
 runp:
