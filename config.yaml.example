@@ -42,3 +42,7 @@ consumer:
   max_retries: 3
   retry_backoff: 250ms
 
+cache:
+  entry_size_cap: 1_048_576 # == 1Mb, the size is determined in amount of bytes
+  entry_amount_cap: 500
+  preload_size: 250
