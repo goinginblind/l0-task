@@ -10,12 +10,14 @@ import (
 	"path/filepath"
 	"strings"
 
+	"errors"
+
 	"github.com/goinginblind/l0-task/internal/api/ui"
 	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
 	"github.com/goinginblind/l0-task/internal/store"
-	"errors"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // Server is the HTTP server.
@@ -45,9 +47,10 @@ func NewServer(service service.OrderService, logger logger.Logger, cfg config.HT
 	mux.HandleFunc("/", srv.home)
 	mux.HandleFunc("/home", srv.home)
 	mux.HandleFunc("/orders/", srv.orderView)
+	mux.Handle("/metrics", promhttp.Handler())
 
 	srv.httpServer = &http.Server{
-		Handler:      mux,
+		Handler:      metricsMiddleware(mux),
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,
