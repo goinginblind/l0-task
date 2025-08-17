@@ -18,10 +18,6 @@ database:
   sslmode: "disable"
   max_connections: 10
   max_idle_conns: 5
-  connect_timeout: "10s"
-  statement_timeout: "30s"
-  conn_max_lifetime: "30m"
-  conn_max_idle_time: "10m"
 
 kafka:
   bootstrap_servers: "localhost:9092"
@@ -47,6 +43,6 @@ consumer:
   retry_backoff: 250ms
 
 cache:
-  entry_size_cap: 1_048_576 # == 1Mb, the size is determined in amount of bytes
+  entry_size_cap: 1_048_576 # 1Mb
   entry_amount_cap: 500
   preload_size: 250
