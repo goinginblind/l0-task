@@ -122,13 +122,13 @@ def inject_invalid_data(order):
     return order
 
 # --------------------------------------------------------------------------------------------------------------------------------------
-# CLI w/ flags
+# Script w/ flags
 # --------------------------------------------------------------------------------------------------------------------------------------
 # 100% valid orders:
-# python gen_orders.py -n 50 --min-items 1 --max-items 10 --invalid-rate 0.0 -o valid.json
+# python gen_orders.py -n 50 --min-items 1 --max-items 10 --invalid-rate 0.0 -o mock.json
 
-# 80%  valid orders:                                                     ↓ this flag == 23% invalid
-# python gen_orders.py -n 50 --min-items 1 --max-items 10 --invalid-rate 0.2 -o mixed.json
+# 80%  valid orders:                                                     ↓ this flag == 20% invalid
+# python gen_orders.py -n 50 --min-items 1 --max-items 10 --invalid-rate 0.2 -o mock.json
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Generate mock orders JSON (valid + invalid).")
     parser.add_argument("-n", "--num-orders", type=int, default=100, help="Number of orders to generate")
