@@ -24,6 +24,8 @@ func (m *MockOrderStore) Insert(ctx context.Context, order *domain.Order) error 
 }
 
 func (m *MockOrderStore) GetOrder(ctx context.Context, uid string) (*domain.Order, error) {
+	// Simulate database latency for realistic benchmarks
+	time.Sleep(2 * time.Millisecond)
 	args := m.Called(ctx, uid)
 	if args.Get(0) == nil {
 		return nil, args.Error(1)
@@ -37,6 +39,51 @@ func (m *MockOrderStore) GetLatestOrders(ctx context.Context, limit int) ([]*dom
 		return nil, args.Error(1)
 	}
 	return args.Get(0).([]*domain.Order), args.Error(1)
+}
+
+var (
+	mockOrder = &domain.Order{OrderUID: "benchmark-uid"}
+	ctx       = context.Background()
+)
+
+func setupBenchmarkServices() (OrderService, OrderService) {
+	mockStore := new(MockOrderStore)
+	mockStore.On("GetOrder", ctx, mockOrder.OrderUID).Return(mockOrder, nil)
+
+	mockLogger := logger.NewMockLogger()
+
+	// Service without cache
+	orderService := New(mockStore, mockLogger)
+
+	// Service with cache
+	cachingService := NewCachingOrderService(orderService, mockStore, mockLogger, 100, 1024*1024)
+
+	return orderService, cachingService
+}
+
+func Benchmark_OrderService_GetOrder_NoCache(b *testing.B) {
+	orderService, _ := setupBenchmarkServices()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, _ = orderService.GetOrder(ctx, mockOrder.OrderUID)
+	}
+}
+
+func Benchmark_CachingOrderService_GetOrder_CacheHit(b *testing.B) {
+	_, cachingService := setupBenchmarkServices()
+
+	// Pre-populate the cache, so we can benchmark a cache hit
+	_, _ = cachingService.GetOrder(ctx, mockOrder.OrderUID)
+
+	b.ReportAllocs()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		_, _ = cachingService.GetOrder(ctx, mockOrder.OrderUID)
+	}
 }
 
 func TestOrderService_ProcessNewOrder(t *testing.T) {
