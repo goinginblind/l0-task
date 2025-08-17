@@ -99,7 +99,7 @@ func (w *worker) processMessage(msg *kafka.Message) {
 	// inspect `processErr` to decide what to do (and log it)
 	w.deps.logger.Errorw("Failed to process order after all attempts.",
 		"order_uid", order.OrderUID,
-		"attempts", w.maxRetries,
+		"attempts", w.maxRetries, // this is incorrect info
 		"final_error", processErr,
 	)
 
