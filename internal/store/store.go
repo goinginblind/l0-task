@@ -6,9 +6,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/goinginblind/l0-task/internal/domain"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
+	"github.com/goinginblind/l0-task/internal/pkg/metrics"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v5/pgconn"
 )
@@ -30,6 +32,12 @@ func NewDBStore(db *sql.DB, logger logger.Logger) *DBStore {
 // Insert adds a new order to the database. It's atomic, so if
 // any of the inserts fail, the whole transaction is rolled back.
 func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
+	start := time.Now()
+	defer func() {
+		duration := float64(time.Since(start).Seconds())
+		metrics.DBResponseTime.WithLabelValues("insert_order").Observe(duration)
+	}()
+
 	tx, err := s.db.BeginTx(ctx, nil)
 	if err != nil {
 		if isConnectionError(err) {
@@ -104,6 +112,12 @@ func (s *DBStore) Insert(ctx context.Context, o *domain.Order) error {
 //
 // Right now it asks the db for a JSON, then unmarshals and returns an order struct
 func (s *DBStore) GetOrder(ctx context.Context, orderUID string) (*domain.Order, error) {
+	start := time.Now()
+	defer func() {
+		duration := float64(time.Since(start).Seconds())
+		metrics.DBResponseTime.WithLabelValues("get_order").Observe(duration)
+	}()
+
 	var jsonBytes []byte
 	err := s.db.QueryRowContext(ctx, qRetrieveJSON, orderUID).Scan(&jsonBytes)
 	if err != nil {
