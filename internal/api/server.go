@@ -47,10 +47,13 @@ func NewServer(service service.OrderService, logger logger.Logger, cfg config.HT
 	mux.HandleFunc("/", srv.home)
 	mux.HandleFunc("/home", srv.home)
 	mux.HandleFunc("/orders/", srv.orderView)
-	mux.Handle("/metrics", promhttp.Handler())
+
+	mainMux := http.NewServeMux()
+	mainMux.Handle("/metrics", promhttp.Handler())
+	mainMux.Handle("/", metricsMiddleware(mux))
 
 	srv.httpServer = &http.Server{
-		Handler:      metricsMiddleware(mux),
+		Handler:      mainMux,
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,

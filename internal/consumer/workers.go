@@ -74,7 +74,6 @@ func (w *worker) processMessage(msg *kafka.Message) {
 
 	var processErr error
 	for attempt := 1; attempt <= w.maxRetries; attempt++ {
-		metrics.DbTransientErrors.Inc()
 		processErr = w.deps.service.ProcessNewOrder(w.deps.ctx, &order)
 		if processErr == nil {
 			// success == commit, exit
@@ -88,6 +87,8 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		if !errors.Is(processErr, store.ErrConnectionFailed) {
 			break
 		}
+
+		metrics.DbTransientErrors.Inc()
 
 		// If it was a connection error, log a warning and wait before the next attempt.
 		if attempt < w.maxRetries {
