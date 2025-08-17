@@ -1,7 +1,44 @@
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: service
+    container_name: l0-app
+    restart: always
+    depends_on:
+      - postgres
+      - broker
+    ports:
+      - "${HTTP_SERVER_PORT}:8080"
+    environment:
+      - DATABASE_HOST=postgres
+      - DATABASE_PORT=5432
+      - DATABASE_USER=${POSTGRES_USER}
+      - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
+      - DATABASE_DBNAME=${POSTGRES_DB}
+      - KAFKA_BOOTSTRAP_SERVERS=broker:29092
+    networks:
+      - l0-network
+
+  producer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: producer
+    container_name: l0-producer
+    depends_on:
+      - broker
+    environment:
+      - KAFKA_BROKERS=broker:29092
+    volumes:
+      - ./mock.json:/app/mock.json
+    networks:
+      - l0-network
+
   postgres:
     image: postgres:17-alpine
-    container_name: orders-l0-db
+    container_name: database-l0
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -9,6 +46,10 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
       - "${POSTGRES_PORT}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - l0-network
 
   zookeeper:
     image: confluentinc/cp-zookeeper:7.3.0
@@ -16,6 +57,8 @@ services:
     environment:
       ZOOKEEPER_CLIENT_PORT: ${ZOOKEEPER_CLIENT_PORT}
       ZOOKEEPER_TICK_TIME: ${ZOOKEEPER_TICK_TIME}
+    networks:
+    - l0-network
 
   broker:
     image: confluentinc/cp-kafka:7.3.0
@@ -32,14 +75,36 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: ${KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR}
       KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: ${KAFKA_TRANSACTION_STATE_LOG_MIN_ISR}
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: ${KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR}
+    networks:
+      - l0-network
 
-  postgres-test:
-    image: postgres:17-alpine
-    container_name: orders-test-db
+  prometheus:
+    image: prom/prometheus:main
+    container_name: prometheus-l0
     restart: always
-    environment:
-      POSTGRES_USER: "test_user"
-      POSTGRES_PASSWORD: "test_pass"
-      POSTGRES_DB: "test_orders_db"
     ports:
-      - "5433:5432"
+      - "${PROMETHEUS_PORT}:9090"
+    volumes:
+      - ./configs/prometheus:/etc/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+    networks:
+      - l0-network
+
+  grafana:
+    image: grafana/grafana:main-ubuntu
+    container_name: grafana-l0
+    restart: always
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    volumes:
+      - ./configs/grafana/provisioning:/etc/grafana/provisioning
+    networks:
+      - l0-network
+
+volumes:
+  postgres_data:
+
+networks:
+  l0-network:
+    driver: bridge
