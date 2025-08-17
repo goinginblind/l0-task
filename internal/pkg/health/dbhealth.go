@@ -7,6 +7,7 @@ import (
 
 	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
+	"github.com/goinginblind/l0-task/internal/pkg/metrics"
 )
 
 // Pinger wraps the PingContext method.
@@ -82,11 +83,14 @@ func (hc *DBHealthChecker) checkHealth(ctx context.Context) {
 			hc.logger.Errorw("Database connection lost", "error", err)
 			hc.isHealthy.Store(false)
 		}
+		metrics.DBUptime.Set(0)
 		return
 	}
 
 	if !wasHealthy {
-		hc.logger.Infow("Database connection restored")
+		hc.logger.Infow("Database connection online")
 		hc.isHealthy.Store(true)
 	}
+
+	metrics.DBUptime.Set(1)
 }
