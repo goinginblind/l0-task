@@ -4,9 +4,13 @@
     <div class="card">
         <h1>Search for an Order</h1>
         <form id="search-form">
-            <input type="text" id="order-uid" name="order_uid" placeholder="Enter Order UID" required>
+            <input type="text" id="order-uid" name="order_uid" placeholder="Enter Order UID" required
+            {{if .Error}} class="error" value="{{.OrderUID}}" {{end}}>
             <button type="submit">Search</button>
         </form>
+        {{if .Error}}
+            <p class="error-message">{{.Error}}</p>
+        {{end}}
     </div>
 </div>
 {{end}}
