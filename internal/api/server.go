@@ -14,6 +14,8 @@ import (
 	"github.com/goinginblind/l0-task/internal/config"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/service"
+	"github.com/goinginblind/l0-task/internal/store"
+	"errors"
 )
 
 // Server is the HTTP server.
@@ -80,7 +82,21 @@ func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	s.render(w, r, http.StatusOK, "home.tmpl", nil)
+
+	uid := r.URL.Query().Get("uid")
+	errMsg := r.URL.Query().Get("error")
+
+	data := map[string]any{
+		"OrderUID":   uid,
+		"OrderFound": false,
+		"Error":      "",
+	}
+
+	if errMsg == "not_found" {
+		data["Error"] = fmt.Sprintf("Order with UID '%s' not found", uid)
+	}
+
+	s.render(w, r, http.StatusOK, "home.tmpl", data)
 }
 
 // order page handler
@@ -98,6 +114,11 @@ func (s *Server) orderView(w http.ResponseWriter, r *http.Request) {
 
 	order, err := s.service.GetOrder(r.Context(), uid)
 	if err != nil {
+		if errors.Is(err, store.ErrNotFound) {
+			redirectURL := fmt.Sprintf("/home?error=not_found&uid=%s", uid)
+			http.Redirect(w, r, redirectURL, http.StatusFound)
+			return
+		}
 		s.serverError(w, r, err)
 		return
 	}
