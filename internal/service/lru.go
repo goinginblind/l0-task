@@ -16,7 +16,7 @@ type cacheEntry struct {
 
 type LRUCache struct {
 	mu             sync.RWMutex
-	entryCountCap  int // cap max amount of entries in bytes
+	entryCountCap  int // cap max amount of entries
 	entrySizeCap   int // cap of single entry size
 	currEntryCount int
 	items          map[string]*list.Element
