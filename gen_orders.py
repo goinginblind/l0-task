@@ -135,7 +135,7 @@ if __name__ == "__main__":
     parser.add_argument("--min-items", type=int, default=1, help="Minimum items per order")
     parser.add_argument("--max-items", type=int, default=5, help="Maximum items per order")
     parser.add_argument("--invalid-rate", type=float, default=0.0, help="Fraction of orders to make invalid (0.0–1.0)")
-    parser.add_argument("-o", "--output", default="mock_orders.json", help="Output file name")
+    parser.add_argument("-o", "--output", default="mock.json", help="Output file name")
     args = parser.parse_args()
 
     orders = []
