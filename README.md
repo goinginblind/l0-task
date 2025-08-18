@@ -16,6 +16,7 @@ This project is a Go-based application designed for handling orders, featuring a
 - [Consumer Descision Tree](docs/consumer.md)
 - [Cache Implementation](docs/cache.md)
 - [JSON Validation](docs/validation.md)
+- [A bit about errors, metrcis and db health checks](docs/misc.md)
 
 ## Project Structure
 
@@ -26,6 +27,7 @@ config.yaml.example # an example of app (consumer-service) config
 docker-compose.yml  
 Dockerfile          # Dockerfile to build app and producer containers
 gen_orders.py       # A Python script used to generate JSON payloads
+locustfile.py       # A Python script used to make a simple load test
 go.mod              
 go.sum
 Makefile            # Commands to speed up builds and teardowns
