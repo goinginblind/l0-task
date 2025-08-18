@@ -1,96 +1,127 @@
-# Project Title: Wildberries L0 Task (Order Service)
-## Пока только план для ридми.мд (к обеду будет) 
+# L0 Task Project
 
-## Description
-A Go-based microservice for processing and serving order information. It consumes order data from Kafka, stores it in a PostgreSQL database, and provides a web interface to view order details. A separate producer application is included to simulate order generation and publishing to Kafka.
+This project is a Go-based application designed for handling orders, featuring a producer, a consumer, an API service, and a PostgreSQL database. It includes an LRU cache for efficient data retrieval and Prometheus/Grafana for monitoring.
 
 ## Features
-- **Kafka Consumer:** Reliably consumes order messages from a Kafka topic.
-- **Data Persistence:** Stores order data in a PostgreSQL database.
-- **HTTP API & UI:** Provides a simple web interface to retrieve and display order details by UID.
-- **Order Producer:** A command-line tool to generate and publish mock order data to Kafka.
-- **Database Migrations:** Manages database schema changes using `goose`.
-- **Containerized Environment:** Uses Docker Compose for easy setup of PostgreSQL and Kafka (Zookeeper + Broker).
-- **Structured Logging:** Utilizes Zap for efficient and structured logging.
-- **Input Validation:** Validates incoming order data.
-- **In-memory Cache:** Implements an in-memory cache for frequently accessed orders to improve performance.
 
-## Architecture
-The application follows a layered architecture:
-- **Entrypoint (`cmd/service/main.go`):** Initializes and runs the application.
-- **Orchestration (`internal/app`):** Wires up and manages dependencies between different components.
-- **Delivery Layer:**
-    - **`internal/api` (HTTP + UI):** Handles incoming HTTP requests, serves static assets, and renders HTML templates for the web interface.
-    - **`internal/consumer` (Kafka):** Consumes messages from Kafka, processes them, and handles database health checks to pause/resume consumption.
-- **Business Logic Layer (`internal/service`):** Contains the core business logic for order processing, including an in-memory cache decorator.
-- **Data Access Layer (`internal/store`):** Manages interactions with the PostgreSQL database.
-- **Shared Dependencies:**
-    - **`internal/domain`:** Defines the core data structures (e.g., `Order`).
-    - **`internal/pkg`:** Provides common utilities like logging, health checks, and size calculation.
-    - **`internal/config`:** Handles application configuration.
+*   **Order Generation:** A producer service to generate and publish order data
+*   **Order Consumption:** A consumer service to process order data concurrently
+*   **API Service:** A web API to interact with the service's data
+*   **PostgreSQL Database:** Persistent storage for order information
+*   **LRU Cache:** In-memory caching for frequently accessed orders
+*   **Monitoring:** Integration with Prometheus and Grafana for metrics and dashboards
 
 
 ## Getting Started
 
 ### Prerequisites
-- Docker and Docker Compose
-- Go (version 1.24.5 or higher)
-- Python 3 (for `gen_orders.py`)
 
-### Setup and Installation
+*   Go (version 1.24.5 or higher)
+*   Docker and Docker Compose
+
+### Installation
+
 1.  **Clone the repository:**
+
     ```bash
-    git clone https://github.com/goinginblind/l0-task.git
+    git clone https://github.com/your-repo/l0-task.git
     cd l0-task
     ```
-2.  **Environment Variables:**
-    Copy `.env.example` to `.env` and configure your environment variables (e.g., PostgreSQL credentials, Kafka broker addresses).
+
+2.  **Set up environment variables:**
+
+    Copy the example environment file and modify it as needed. It is used by the `docker compose`:
+
     ```bash
     cp .env.example .env
-    # Edit .env file with your desired configurations
-    ```
-3.  **Build and Run Services (using Makefile):**
-    The `setup` command will build the Go binaries, generate mock orders, start Docker containers (PostgreSQL, Zookeeper, Kafka), and run database migrations.
-    ```bash
-    make setup
     ```
 
-### Running the Application
+    Copy the config file for the consumer service:
 
-1.  **Start the Producer:**
-    This will send generated orders from `orders.json` to Kafka.
     ```bash
-    make runp
-    ```
-2.  **Start the Service:**
-    This will start the HTTP server and Kafka consumer.
-    ```bash
-    make runs
+    cp config.yaml.example config.yaml
     ```
 
-### Accessing the Application
-- **Web UI:** Open your browser to `http://localhost:8080` (or whatever port is configured in `.env`).
-- **Order Details:** You can view specific order details by navigating to `http://localhost:8080/orders/<ORDER_UID>`.
+3.  **Build and run with Docker Compose:**
+    You can either pull prebuilt images:  
+    
+    ```bash
+    docker pull goinginblind/l0-task-app
+    docker pull goinginblind/l0-task-producer
+    ```
+    or build them locally:
+    
+    ```bash
+    docker compose up --build
+    ```
+    If images are pulled, you can also use:
+
+    ```bash
+    make run-all
+    ```
+    It runs the whole service with default settings:
+    - Python script generates 3600 orders (10% with invalid data)
+    - Producer runs at 1 RPS (--rps N can override)
+    - PostgreSQL setup with migrations ([Goose migration tool](https://github.com/pressly/goose) required)
+    - Kafka with Zookeeper
+    - Consumer with default settings
+    - Prometheus and Grafana
+
+    Afterwards, clean everything up:
+
+    ```bash
+    make clean
+    ```
+    This deletes generated payloads, containers, and orphans.
+    
+
+## Project Structure
+
+```
+.env.example        # an example of .env, used by the docker compose
+.gitignore          
+config.yaml.example # an example of app (consumer-service) config
+docker-compose.yml  
+Dockerfile          # Dockerfile to build app and producer containers
+gen_orders.py       # A Python script used to generate JSON payloads
+go.mod              
+go.sum
+Makefile            # Commands to speed up builds and teardowns
+cmd/
+├── producer/       # Order producer service
+└── service/        # Consumer service
+configs/
+├── grafana/        # Grafana dashboards and datasources
+└── prometheus/     # Prometheus configuration
+internal/
+├── api/            # API handlers, middleware, and UI templates
+├── app/            # Main application logic orchestrator
+├── config/         # Configuration loading
+├── consumer/       # Order consumer logic
+├── domain/         # Core domain models
+├── pkg/            # Reusable packages (health, logger, metrics, sizeof)
+├── service/        # Business logic layer and LRU cache implementation as its wrapper
+└── store/          # Database interaction (with PostgreSQL)
+sql/
+├── 001_initial_schema.sql                          # Main schema
+└── 002_add_timestamps_and_latest_orders_query.sql  # Add timestamps used by cache
+```
 
 ## API Endpoints
-- `GET /home`: Home page.
-- `GET /orders/{order_uid}`: Retrieve details for a specific order.
 
-## Database Schema
-The PostgreSQL database includes the following main tables:
-- `orders`: Stores primary order information.
-- `deliveries`: Stores delivery details, linked to `orders` by `order_id`.
-- `payments`: Stores payment details, linked to `orders` by `order_id`.
-- `items`: Stores individual item details within an order, linked to `orders` by `order_id`.
+The API service typically runs on port `8080` (configurable via `.env` if running via a container or through regular enviroment variables).
 
-## Testing
-Run all Go tests:
-```bash
-make test
-```
+*   `GET /`: Home page (UI).
+*   `GET /order/{order_uid}`: Retrieve order details by UID.
+*   `GET /metrics`: Endpoint scraped by prometheus
 
-## Cleanup
-To stop and remove Docker containers, and clean up generated files:
-```bash
-make clean
-```
+## Technologies Used
+
+*   Go
+*   PostgreSQL
+*   Kafka 
+*   Docker
+*   Docker Compose
+*   Prometheus
+*   Grafana
+*   HTML/CSS/JavaScript (UI)
