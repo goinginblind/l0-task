@@ -11,6 +11,9 @@ This project is a Go-based application designed for handling orders, featuring a
 *   **LRU Cache:** In-memory caching for frequently accessed orders
 *   **Monitoring:** Integration with Prometheus and Grafana for metrics and dashboards
 
+## More specific details on design descisions:
+- [Database Schema](docs/database.md)
+
 ## Project Structure
 
 ```
