@@ -2,6 +2,41 @@
 
 This project is a Go-based application designed for handling orders, featuring a producer, a consumer, an API service, and a PostgreSQL database. It includes an LRU cache for efficient data retrieval and Prometheus/Grafana for monitoring.
 
+## Table of Contents
+
+- [L0 Task Project](#l0-task-project)
+  - [More specific details on design choices:](#more-specific-details-on-design-choices)
+  - [Features](#features)
+  - [Project Structure](#project-structure)
+  - [Technologies Used](#technologies-used)
+  - [Configuration and Environment](#configuration-and-environment)
+    - [Environment Variables (`.env` and `docker-compose.yml`)](#environment-variables-env-and-docker-composeyml)
+    - [Configuration File (`config.yaml` and `internal/config/config.go`)](#configuration-file-configyaml-and-internalconfigconfiggo)
+    - [Secrets Management](#secrets-management)
+    - [Ports](#ports)
+    - [Kafka Topics](#kafka-topics)
+  - [Usage / Running the Project](#usage--running-the-project)
+    - [Starting Services with Docker Compose](#starting-services-with-docker-compose)
+    - [Order Generation Script (`gen_orders.py`)](#order-generation-script-gen_orderspy)
+    - [Producer Service (`cmd/producer/main.go`)](#producer-service-cmdproducermaingo)
+    - [Makefile Targets](#makefile-targets)
+  - [Database / Schema](#database--schema)
+    - [Table Relations](#table-relations)
+    - [Indexes](#indexes)
+    - [Migration Instructions](#migration-instructions)
+  - [Metrics / Monitoring / Observability](#metrics--monitoring--observability)
+    - [Metrics](#metrics)
+    - [Monitoring with Prometheus and Grafana](#monitoring-with-prometheus-and-grafana)
+  - [API Endpoints](#api-endpoints)
+  - [Graceful Shutdown](#graceful-shutdown)
+
+## More specific details on design choices:
+- [Database Schema](docs/database.md)
+- [Consumer Descision Tree](docs/consumer.md)
+- [Cache Implementation](docs/cache.md)
+- [JSON Validation](docs/validation.md)
+- [A bit about errors, metrcis and db health checks](docs/misc.md)
+
 ## Features
 
 *   **Order Generation:** A producer service to generate and publish order data
@@ -10,13 +45,6 @@ This project is a Go-based application designed for handling orders, featuring a
 *   **PostgreSQL Database:** Persistent storage for order information
 *   **LRU Cache:** In-memory caching for frequently accessed orders
 *   **Monitoring:** Integration with Prometheus and Grafana for metrics and dashboards
-
-## More specific details on design choices:
-- [Database Schema](docs/database.md)
-- [Consumer Descision Tree](docs/consumer.md)
-- [Cache Implementation](docs/cache.md)
-- [JSON Validation](docs/validation.md)
-- [A bit about errors, metrcis and db health checks](docs/misc.md)
 
 ## Project Structure
 
@@ -225,63 +253,9 @@ The `Makefile` provides convenient commands for common tasks:
 
 The project uses a PostgreSQL database to store order information. The schema is defined across several tables with specific relationships.
 
-### ER Diagram (Conceptual)
-
 The DB schema is as follows:
 
-*   **`orders`** (Main Order Information)
-    *   `id` (BIGSERIAL, PRIMARY KEY)
-    *   `order_uid` (TEXT, UNIQUE, NOT NULL)
-    *   `track_number` (TEXT, NOT NULL)
-    *   `entry` (TEXT, NOT NULL)
-    *   `locale` (VARCHAR(10), NOT NULL)
-    *   `internal_signature` (TEXT)
-    *   `customer_id` (TEXT, NOT NULL)
-    *   `delivery_service` (TEXT, NOT NULL)
-    *   `shard_key` (TEXT, NOT NULL)
-    *   `sm_id` (INT, NOT NULL)
-    *   `date_created` (TIMESTAMPTZ, NOT NULL)
-    *   `oof_shard` (TEXT, NOT NULL)
-    *   `created_at` (TIMESTAMPTZ, DEFAULT NOW() - added by migration `002`)
-    *   `updated_at` (TIMESTAMPTZ, DEFAULT NOW() - added by migration `002`)
-
-*   **`deliveries`** (One-to-One with `orders`)
-    *   `order_id` (BIGINT, PRIMARY KEY, FOREIGN KEY references `orders(id)` ON DELETE CASCADE)
-    *   `name` (TEXT, NOT NULL)
-    *   `phone` (TEXT, NOT NULL)
-    *   `zip` (TEXT, NOT NULL)
-    *   `city` (TEXT, NOT NULL)
-    *   `address` (TEXT, NOT NULL)
-    *   `region` (TEXT, NOT NULL)
-    *   `email` (TEXT, NOT NULL)
-
-*   **`payments`** (One-to-One with `orders`)
-    *   `order_id` (BIGINT, PRIMARY KEY, FOREIGN KEY references `orders(id)` ON DELETE CASCADE)
-    *   `transaction` (TEXT, NOT NULL)
-    *   `request_id` (TEXT)
-    *   `currency` (VARCHAR(3), NOT NULL)
-    *   `provider` (TEXT, NOT NULL)
-    *   `amount` (INT, NOT NULL)
-    *   `payment_dt` (INT, NOT NULL)
-    *   `bank` (TEXT, NOT NULL)
-    *   `delivery_cost` (INT, NOT NULL)
-    *   `goods_total` (INT, NOT NULL)
-    *   `custom_fee` (INT, NOT NULL)
-
-*   **`items`** (One-to-Many with `orders`)
-    *   `id` (BIGSERIAL, PRIMARY KEY)
-    *   `order_id` (BIGINT, NOT NULL, FOREIGN KEY references `orders(id)` ON DELETE CASCADE)
-    *   `chrt_id` (INT, NOT NULL)
-    *   `track_number` (TEXT, NOT NULL)
-    *   `price` (INT, NOT NULL)
-    *   `rid` (TEXT, NOT NULL)
-    *   `name` (TEXT, NOT NULL)
-    *   `sale` (INT, NOT NULL)
-    *   `size` (TEXT, NOT NULL)
-    *   `total_price` (INT, NOT NULL)
-    *   `nm_id` (INT, NOT NULL)
-    *   `brand` (TEXT, NOT NULL)
-    *   `status` (INT, NOT NULL)
+![dbschema](docs/schema.png)
 
 ### Table Relations
 
@@ -360,3 +334,15 @@ The API service typically runs on port `8080` (configurable via `.env` if runnin
 *   `GET /`: Home page (UI).
 *   `GET /order/{order_uid}`: Retrieve order details by UID.
 *   `GET /metrics`: Endpoint scraped by prometheus
+
+
+## Graceful Shutdown
+
+The service is designed to shut down gracefully to prevent data loss and ensure clean resource management. If it receives a `SIGINT` or a `SIGTERM` signal it does the next things:
+
+1.  **Shutdown Initiated:** Upon receiving a signal, the application begins the shutdown process.
+2.  **Consumer Stop:** The Kafka consumer is signaled to stop polling for new messages and finish processing any in-flight messages.
+3.  **HTTP Server Shutdown:** The HTTP server stops accepting new connections and waits for existing requests to complete, up to a configured timeout (`shutdown_timeout` in `config.yaml`).
+4.  **Resource Cleanup:** Finally, resources like the database connection pool are closed.
+
+This ensures that the application shuts down cleanly, without interrupting ongoing work or leaving connections open.
