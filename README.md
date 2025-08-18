@@ -13,6 +13,7 @@ This project is a Go-based application designed for handling orders, featuring a
 
 ## More specific details on design descisions:
 - [Database Schema](docs/database.md)
+- [Consumer Descision Tree](docs/consumer.md)
 
 ## Project Structure
 
