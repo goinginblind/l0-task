@@ -15,6 +15,7 @@ This project is a Go-based application designed for handling orders, featuring a
 - [Database Schema](docs/database.md)
 - [Consumer Descision Tree](docs/consumer.md)
 - [Cache Implementation](docs/cache.md)
+- [JSON Validation](docs/validation.md)
 
 ## Project Structure
 

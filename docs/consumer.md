@@ -52,4 +52,12 @@ The worker first retries with exponential backoff (too, configurable) in case th
 4. **Why keep polling if the database connection is down?**
 It keeps the heartbeat of the consumer up on the Kafka-side, so the consumer is not kicked out. If the database connection lost times out, then the whole program will gracefully exit.
 5. **What happens if the DB is up again?**
-The consumer proceeds as normally, it again
+The consumer proceeds as normally after it pings again and gets a response from the db
+
+
+### Check out these too if you're interested: 
+* [Database Schema](../docs/database.md)
+* [Cache Implementation](../docs/cache.md)
+* [JSON Validation](../docs/validation.md)
+
+### Or go back to the [main README.md](../README.md)
