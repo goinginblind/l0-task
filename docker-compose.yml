@@ -18,6 +18,8 @@ services:
       - DATABASE_PASSWORD=${POSTGRES_PASSWORD}
       - DATABASE_DBNAME=${POSTGRES_DB}
       - KAFKA_BOOTSTRAP_SERVERS=broker:29092
+    volumes:
+      - ./config.yaml:/app/config.yaml # Config for the consumer service
     networks:
       - l0-network
 
@@ -33,6 +35,7 @@ services:
       - KAFKA_BROKERS=broker:29092
     volumes:
       - ./mock.json:/app/mock.json
+    command: ["./producer", "--file", "/app/mock.json", "--rps", "1"] # You can change flags here
     networks:
       - l0-network
 
