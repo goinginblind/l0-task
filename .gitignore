@@ -5,8 +5,9 @@ bin
 *mock*.json
 orders.json
 
-# Python venv
+# Python
 .venv
+__pycache__
 
 # Secrets
 .env
