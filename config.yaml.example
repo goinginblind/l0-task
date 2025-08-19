@@ -18,6 +18,8 @@ database:
   sslmode: "disable"
   max_connections: 10
   max_idle_conns: 5
+  conn_max_lifetime: "30m"
+	conn_max_idle_time: "10m"
 
 kafka:
   bootstrap_servers: "localhost:9092"
