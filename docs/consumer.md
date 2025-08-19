@@ -55,9 +55,10 @@ It keeps the heartbeat of the consumer up on the Kafka-side, so the consumer is 
 The consumer proceeds as normally after it pings again and gets a response from the db
 
 
-### Check out these too if you're interested: 
-* [Database Schema](../docs/database.md)
-* [Cache Implementation](../docs/cache.md)
-* [JSON Validation](../docs/validation.md)
+### Other Documentation:
+* [Database Schema](database.md)
+* [Cache Implementation](cache.md)
+* [JSON Validation](validation.md)
+* [Errors, Metrics, and DB Health Checks](misc.md)
 
-### Or go back to the [main README.md](../README.md)
+### Back to [Main README](../README.md)

@@ -13,9 +13,10 @@ _Alternative_: I could use natural keys (order_uid, transaction) directly as pri
 3. **Why NOT NULL constraints everywhere?**
 This ensures the database rejects bad/incomplete data if the Go application logic slips. It is a safety net
 
-### Check out these too if you're interested: 
-* [Consumer Descision Tree](../docs/consumer.md)
-* [Cache Implementation](../docs/cache.md)
-* [JSON Validation](../docs/validation.md)
+### Other Documentation:
+* [Consumer Decision Tree](consumer.md)
+* [Cache Implementation](cache.md)
+* [JSON Validation](validation.md)
+* [Errors, Metrics, and DB Health Checks](misc.md)
 
-### Or go back to the [main README.md](../README.md)
+### Back to [Main README](../README.md)

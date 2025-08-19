@@ -25,9 +25,10 @@ But there are tradeoffs in all of the cases:
 But it is __safer__ and that's why I chose it. Its simple and its safe (and also made me write a separate [DeepSize-calculator function](../internal/pkg/sizeof/calculator.go), so it is what it is!).
 
 
-### Check out these too if you're interested:
-* [DB Schema](../docs/database.md)
-* [Consumer Descision Tree](../docs/consumer.md)
-* [JSON Validation](../docs/validation.md)
+### Other Documentation:
+* [Database Schema](database.md)
+* [Consumer Decision Tree](consumer.md)
+* [JSON Validation](validation.md)
+* [Errors, Metrics, and DB Health Checks](misc.md)
 
-### Or go back to the [main README.md](../README.md)
+### Back to [Main README](../README.md)

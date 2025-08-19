@@ -1,4 +1,17 @@
+[Русский README](README.ru.md)
+
 # L0 Task Project
+
+This project is a Go-based application designed for handling orders, featuring a producer, a consumer, an API service, and a PostgreSQL database. It includes an LRU cache for efficient data retrieval and Prometheus/Grafana for monitoring.
+
+## More specific details on design choices:
+- [Database Schema](docs/database.md)
+- [Consumer Descision Tree](docs/consumer.md)
+- [Cache Implementation](docs/cache.md)
+- [JSON Validation](docs/validation.md)
+- [A bit about errors, metrcis and db health checks](docs/misc.md)
+
+## Table of Contents
 
 This project is a Go-based application designed for handling orders, featuring a producer, a consumer, an API service, and a PostgreSQL database. It includes an LRU cache for efficient data retrieval and Prometheus/Grafana for monitoring.
 

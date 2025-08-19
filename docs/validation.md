@@ -36,9 +36,10 @@ Such tags were much easier to utilise than creating my own validation rules, and
 
 After these passed, the order is deemed valid and the db transaction by that moment should be completed (normally). And that's it.
 
-### Check out these too if you're interested: 
-* [Consumer Descision Tree](../docs/consumer.md)
-* [Cache Implementation](../docs/cache.md)
-* [Database Schema](../docs/database.md)
+### Other Documentation:
+* [Consumer Decision Tree](consumer.md)
+* [Cache Implementation](cache.md)
+* [Database Schema](database.md)
+* [Errors, Metrics, and DB Health Checks](misc.md)
 
-### Or go back to the [main README.md](../README.md)
+### Back to [Main README](../README.md)
