@@ -113,9 +113,11 @@ flowchart TD
         C["internal/api"]
         D["internal/consumer (Kafka)"]
   end
- subgraph Business["Business Logic Layer"]
-        E_Cache["internal/cache (decorator)"]
+ subgraph E_Cache["internal/cache (decorator)"]
         E["internal/service (core logic)"]
+  end
+ subgraph Business["Business Logic Layer"]
+        E_Cache
   end
  subgraph Data["Data Access Layer"]
         F["internal/store"]
@@ -124,13 +126,13 @@ flowchart TD
         J[("PostgreSQL")]
         K[("Kafka Broker")]
   end
-    E_Cache --> E
     A --> Orchestration
     Data --> J
     Business --> Data
     Orchestration --> Delivery & Business & Data
     D --> K
     Delivery --> Business
+    style E_Cache fill:#616161,color:#FFFFFF
 ```
 
 ## Technologies Used
