@@ -16,7 +16,7 @@ Essentially composed of:
 - `items` holds pointer to the linked lists elements to allow for O(1) access to the middle of it
 - `evictList` is a doubly linked list which allows an O(1) inserts and deletes at head and tail
 
-Originally I couldn't decide on how to cap the cache: either by raw memory or by entries, so I decided 'why not try both?'.
+Originally I couldn't decide on how to cap the cache: either by raw memory or by entries, so I decided 'why not try both?' – it allows to cap by entries while also implcitly capping the cache by size too (cache upper memory limit is `~entry count * single entry mem limit` 
 Actually there are tradeoffs in all of the cases:
 * Raw memory cap makes cache prone to storing less entries than desired
 * Entry count cap does not allow the exact cache size to be known
