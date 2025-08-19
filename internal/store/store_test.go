@@ -33,7 +33,7 @@ func TestMain(m *testing.M) {
 	var err error
 
 	// Start docker container
-	cmd = exec.Command("docker", "compose", "up", "-d", "postgres-test")
+	cmd = exec.Command("docker", "compose", "-f", "../../docker-compose.yml.test", "up", "-d", "postgres-test")
 	err = cmd.Run()
 	if err != nil {
 		fmt.Println("could not start docker-compose:", err)
