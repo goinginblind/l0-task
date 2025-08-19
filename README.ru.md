@@ -52,7 +52,7 @@
 
 ## Структура проекта
 
-```
+```bash
 .env.example        # пример .env файла, используемого Docker Compose
 .gitignore          
 config.yaml.example # пример конфигурационного файла приложения (consumer-service)
