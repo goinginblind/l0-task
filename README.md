@@ -8,6 +8,7 @@ This project is a Go-based application designed for handling orders, featuring a
   - [More specific details on design choices:](#more-specific-details-on-design-choices)
   - [Features](#features)
   - [Project Structure](#project-structure)
+  - [Project Architecture Outline](#project-architecture-outline)
   - [Technologies Used](#technologies-used)
   - [Configuration and Environment](#configuration-and-environment)
     - [Environment Variables (`.env` and `docker-compose.yml`)](#environment-variables-env-and-docker-composeyml)
@@ -77,6 +78,46 @@ internal/
 sql/
 ├── 001_initial_schema.sql                          # Main schema
 └── 002_add_timestamps_and_latest_orders_query.sql  # Add timestamps used by cache
+```
+
+## Project Architecture Outline
+Below is the overall high-level project architecture outline. Note that it does not represent all the relations (e.g. some of the arrows should be two-sided, but are left as is to leave out the unnecessary clutter). Also common dependencies of the `internal/pkg` are left out (they are used by almost every other package, hence, the `pkg` name).
+```mermaid
+---
+config:
+  layout: elk
+  theme: dark
+---
+flowchart TD
+ subgraph Orchestration["Orchestration Layer"]
+        B["internal/app"]
+  end
+ subgraph Entrypoint["Entrypoint"]
+        A["cmd/service/main.go"]
+        Orchestration
+  end
+ subgraph Delivery["Delivery Layer"]
+        C["internal/api"]
+        D["internal/consumer (Kafka)"]
+  end
+ subgraph Business["Business Logic Layer"]
+        E_Cache["internal/cache (decorator)"]
+        E["internal/service (core logic)"]
+  end
+ subgraph Data["Data Access Layer"]
+        F["internal/store"]
+  end
+ subgraph External["External Services"]
+        J[("PostgreSQL")]
+        K[("Kafka Broker")]
+  end
+    E_Cache --> E
+    A --> Orchestration
+    Data --> J
+    Business --> Data
+    Orchestration --> Delivery & Business & Data
+    D --> K
+    Delivery --> Business
 ```
 
 ## Technologies Used
