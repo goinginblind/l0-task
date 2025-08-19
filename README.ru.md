@@ -104,8 +104,9 @@ flowchart TD
         D["internal/consumer (Kafka)"]
   end
  subgraph Business["Слой бизнес-логики"]
-        E_Cache["internal/cache (декоратор)"]
+ subgraph E_Cache["internal/cache (декоратор)"]
         E["internal/service (основная логика)"]
+  end
   end
  subgraph Data["Слой доступа к данным"]
         F["internal/store"]
@@ -114,13 +115,13 @@ flowchart TD
         J[("PostgreSQL")]
         K[("Брокер Kafka")]
   end
-    E_Cache --> E
     A --> Orchestration
     Data --> J
     Business --> Data
     Orchestration --> Delivery & Business & Data
     D --> K
     Delivery --> Business
+style E_Cache fill:#616161,color:#FFFFFF
 ```
 
 ## Используемые технологии
