@@ -96,7 +96,6 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 			select {
 			case <-ctx.Done():
 				kc.logger.Infow("Shutting down the consumer...")
-				kc.consumer.Close()
 				return
 			default:
 				// db is NOT healthy and consumer is NOT paused: log, pause
@@ -145,4 +144,5 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 	}()
 
 	wg.Wait()
+	kc.consumer.Close()
 }
