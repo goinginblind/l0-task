@@ -199,3 +199,33 @@ func (kc *KafkaConsumer) manageConsumerState(isPaused *bool) {
 		}
 	}
 }
+
+// drainDLQReports logs if the message sent to DLQ was or was not delivered.
+// It could be a place used for metrics and mostly provides
+// observability (with logs but i will add metrics soon too)
+func drainDLQReports(ctx context.Context, p DLQManager, log logger.Logger) {
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case e, ok := <-p.Events():
+			if !ok {
+				return
+			}
+			switch ev := e.(type) {
+			case *kafka.Message:
+				if ev.TopicPartition.Error != nil {
+					log.Errorw("DLQ delivery failed",
+						"error", ev.TopicPartition.Error,
+						"order_uid", string(ev.Key))
+				} else {
+					log.Infow("DLQ message delivered",
+						"topic", *ev.TopicPartition.Topic,
+						"partition", ev.TopicPartition.Partition,
+						"offset", ev.TopicPartition.Offset,
+						"order_uid", string(ev.Key))
+				}
+			}
+		}
+	}
+}

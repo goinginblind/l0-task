@@ -5,6 +5,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"runtime/debug"
 	"sync"
 	"time"
 
@@ -61,13 +63,29 @@ func (w *worker) run(wg *sync.WaitGroup) {
 			if !ok {
 				return
 			}
-			w.processMessage(msg)
+			func(msg *kafka.Message) {
+				// panic recovery
+				// if something unexpected happens (altough it shouldn't normally).
+				// Send to DLQ after recovery
+				defer func() {
+					if r := recover(); r != nil {
+						w.deps.logger.Errorw("worker encountered panic",
+							"worker id", w.id,
+							"message", msg,
+							"panic", r,
+							"stack", string(debug.Stack()),
+						)
+						w.sendToDLQ(msg, fmt.Errorf("worker encountered panic: %v", r))
+					}
+				}()
+				w.processMessage(msg)
+			}(msg)
 		}
 	}
 }
 
-// processMessage unmarshals the kafka message and then coordinates the processing
-// and result handling.
+// processMessage unmarshals the kafka message and then orchestrates the processing
+// and result handling (passing down to the helper functions).
 func (w *worker) processMessage(msg *kafka.Message) {
 	var order domain.Order
 	dec := json.NewDecoder(bytes.NewReader(msg.Value))
@@ -80,11 +98,12 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		return
 	}
 
-	processErr := w.processWithRetries(&order)
-	w.handleProcessingResult(msg, &order, processErr)
+	processErr := w.processWithRetries(&order)        // process, extract error or retry if possible
+	w.handleProcessingResult(msg, &order, processErr) // error (or nil) goes here, commit or no trough select statement
 }
 
-// processWithRetries contains the retry loop for handling transient DB errors.
+// processWithRetries passes the message down
+// to the service layer, contains the retry loop for handling transient DB errors.
 func (w *worker) processWithRetries(order *domain.Order) error {
 	var processErr error
 	for attempt := 0; attempt < w.maxRetries; attempt++ {
@@ -107,7 +126,7 @@ func (w *worker) processWithRetries(order *domain.Order) error {
 			"retry_in", w.retryBackoff,
 			"error", processErr,
 		)
-		// Corrected exponential backoff: 1<<attempt is 2^attempt
+		// Corrected exponential backoff: 1<<attempt is 2^attempt (степень короче)
 		time.Sleep(w.retryBackoff * time.Duration(1<<attempt))
 	}
 	return processErr
@@ -121,12 +140,6 @@ func (w *worker) handleProcessingResult(msg *kafka.Message, order *domain.Order,
 		w.commit(msg)
 		return
 	}
-
-	w.deps.logger.Errorw("Failed to process order after all attempts.",
-		"order_uid", order.OrderUID,
-		"attempts", w.maxRetries,
-		"final_error", processErr,
-	)
 
 	switch {
 	case errors.Is(processErr, domain.ErrInvalidOrder):
@@ -163,6 +176,7 @@ func (w *worker) handleProcessingResult(msg *kafka.Message, order *domain.Order,
 	w.commit(msg)
 }
 
+// commit commits the message
 func (w *worker) commit(msg *kafka.Message) {
 	if msg == nil {
 		return
@@ -171,5 +185,28 @@ func (w *worker) commit(msg *kafka.Message) {
 	_, err := w.deps.consumer.CommitMessage(msg)
 	if err != nil {
 		w.deps.logger.Errorw("Failed to commit message", "error", err)
+	}
+}
+
+// sendToDLQ sends the message to the dead-line queue topic
+// specified in the config (default 'orders-dlq').
+func (w *worker) sendToDLQ(msg *kafka.Message, reason error) {
+	dlqHeaders := msg.Headers
+	if reason != nil {
+		dlqHeaders = append(dlqHeaders, kafka.Header{
+			Key:   "DLQ REASON",
+			Value: []byte(reason.Error()),
+		})
+	}
+
+	err := w.deps.dlqPublisher.Produce(&kafka.Message{
+		TopicPartition: kafka.TopicPartition{Topic: &w.deps.dlqTopic, Partition: kafka.PartitionAny},
+		Key:            msg.Key,
+		Value:          msg.Value,
+		Headers:        dlqHeaders,
+	}, nil)
+
+	if err != nil {
+		w.deps.logger.Errorw("Failed to produce message to DLQ", "error", err, "order_uid", string(msg.Key))
 	}
 }
