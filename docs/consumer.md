@@ -17,8 +17,8 @@ flowchart TD
         E{"valid JSON?"}
         F["discard"]
         G["process order"]
-        I["log, discard"]
-        Z["Planned dead-line queue"]
+        I["log"]
+        Z["send to dead-line queue"]
         H["commit"]
         K["retry up to N times"]
         M["mark DB unhealthy, NO commit, kafka resends later"]
@@ -29,24 +29,20 @@ flowchart TD
     D --> E
     E -- No --> F
     E -- Yes --> G
-    I --> Z & H
+    I --> Z
     Z --> H
-    F --> H
     G -- invalid/duplicate order or unknown error --> I
     G -- Success --> H
     G -- no connection to db --> K
     K -- recovered --> H
     K -- still fails --> M
-    style Z stroke-dasharray: 5 5
-    linkStyle 6 stroke-dasharray: 5 5,fill:none
-    linkStyle 8 stroke-dasharray: 5 5,fill:none
 
 ```
 Notes:
 1. **How many workers?**
 The amount of workers is configurable via enviroment or `config.yaml`
-2. **Why are invalids, duplicates and unknown errors discarded?**
-These orders are logged by their order_uid, and I intended to send them to a dead-line queue, but had no time (as of now) to implement it.
+2. **What happens to invalid, duplicate, or unknown errors?**
+These orders are logged by their `order_uid` and then sent to a Dead-Letter Queue (DLQ) for later inspection and potential reprocessing. The default DLQ topic is `orders-dlq`. This prevents "poison pill" messages from blocking the consumer while ensuring no data is lost.
 3. **What exactly happens when the database is down?**
 The worker first retries with exponential backoff (too, configurable) in case the connection was lost because of the transient errors (e.g. 1 ms hiccup), then if it fails too, the worker skips message without commits, marks db as unhealthy and the service's health checker kicks in. It pings the database once each N seconds waiting for it to be up.
 4. **Why keep polling if the database connection is down?**

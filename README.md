@@ -59,6 +59,7 @@ This project is a Go-based application designed for handling orders, featuring a
 *   **PostgreSQL Database:** Persistent storage for order information
 *   **LRU Cache:** In-memory caching for frequently accessed orders
 *   **Monitoring:** Integration with Prometheus and Grafana for metrics and dashboards
+*   **Dead-Letter Queue:** Forwards invalid or unprocessable messages for later analysis.
 
 ## Project Structure
 
@@ -223,6 +224,7 @@ The primary Kafka topic used for order processing is `orders`.
 
 *   **Producer:** Publishes messages to the `orders` topic (configurable via `KAFKA_TOPIC` environment variable or `--topic` flag in `cmd/producer/main.go`).
 *   **Consumer:** Subscribes to the `orders` topic (configurable via `CONSUMER_TOPIC` environment variable or `kafka.topic` in `config.yaml`).
+*   **Dead-Letter Queue:** Unprocessable messages are sent to the `orders-dlq` topic (configurable via `consumer.dlq.topic` in `config.yaml`).
 
 
 ## Usage / Running the Project
