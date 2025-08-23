@@ -80,12 +80,26 @@ type ConsumerConfig struct {
 	JobBufferSize int           `mapstructure:"job_buffer_size"`
 	MaxRetries    int           `mapstructure:"max_retries"`
 	RetryBackoff  time.Duration `mapstructure:"retry_backoff"`
+
+	DLQ DLQPublisherConfig `mapstructure:"dlq"`
 }
 
+// CacheConfig holds cache-specific settings, mostly its size
 type CacheConfig struct {
 	EntrySizeCap   int `mapstructure:"entry_size_cap"` // in bytes
 	EntryAmountCap int `mapstructure:"entry_amount_cap"`
 	PreloadSize    int `mapstructure:"preload_size"`
+}
+
+// DLQPublisherConfig holds DLQ-specific producer settings.
+type DLQPublisherConfig struct {
+	Topic             string `mapstructure:"topic"`
+	Acks              string `mapstructure:"acks"`
+	Retries           int    `mapstructure:"retries"`
+	DeliveryTimeout   int    `mapstructure:"delivery_timeout_ms"`
+	Linger            int    `mapstructure:"linger_ms"`
+	BatchSize         int    `mapstructure:"batch_size"`
+	EnableIdempotence bool   `mapstructure:"idempotence"`
 }
 
 // LoadConfig reads configuration from file and environment variables:
@@ -127,12 +141,20 @@ func LoadConfig() (*Config, error) {
 	viper.SetDefault("kafka.session_timeout_ms", 10000)
 	viper.SetDefault("kafka.heartbeat_interval_ms", 3000)
 
-	// consumer
+	// consumer...
 	viper.SetDefault("consumer.topic", "orders")
 	viper.SetDefault("consumer.worker_count", 4)
 	viper.SetDefault("consumer.job_buffer_size", 8)
 	viper.SetDefault("consumer.max_retries", 3)
 	viper.SetDefault("consumer.retry_backoff", "250ms")
+	// and it's dlq:
+	viper.SetDefault("consumer.dlq.topic", "orders-dlq")
+	viper.SetDefault("consumer.dlq.acks", "all")
+	viper.SetDefault("consumer.dlq.retries", 10)
+	viper.SetDefault("consumer.dlq.delivery_timeout_ms", 30)
+	viper.SetDefault("consumer.dlq.linger_ms", 0)
+	viper.SetDefault("consumer.dlq.batch_size", 1)
+	viper.SetDefault("consumer.dlq.idempotence", true)
 
 	// health
 	viper.SetDefault("health.db_hp_interval", "5s")
