@@ -23,7 +23,6 @@ database:
 
 kafka:
   bootstrap_servers: "localhost:9092"
-  topic: "orders"
   consumer_group_id: "orders-consumer"
   auto_offset_reset: "earliest"
   enable_auto_commit: false
@@ -39,6 +38,8 @@ health:
   db_hp_timeout: 180s
 
 consumer:
+  topic: "orders"
+  dlq_topic: "orders.deadline"
   worker_count: 4
   job_buffer_size: 8
   max_retries: 3
