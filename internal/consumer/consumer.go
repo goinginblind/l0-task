@@ -65,7 +65,7 @@ func NewKafkaConsumer(kafCfg config.KafkaConfig, consCfg config.ConsumerConfig,
 	}
 	consumer, err := kafka.NewConsumer(consumerKafkaConfig)
 	if err != nil {
-		return nil, fmt.Errorf("fail to create consumer: %w", err)
+		return nil, fmt.Errorf("fail to create consumer: %v", err)
 	}
 
 	producerCfg := &kafka.ConfigMap{
@@ -79,11 +79,11 @@ func NewKafkaConsumer(kafCfg config.KafkaConfig, consCfg config.ConsumerConfig,
 	}
 	dlqPublisher, err := kafka.NewProducer(producerCfg)
 	if err != nil {
-		return nil, fmt.Errorf("fail to create dlq-producer: %w", err)
+		return nil, fmt.Errorf("fail to create dlq-producer: %v", err)
 	}
 
 	if err := consumer.Subscribe(consCfg.Topic, nil); err != nil {
-		return nil, fmt.Errorf("fail to subscribe: %w", err)
+		return nil, fmt.Errorf("fail to subscribe: %v", err)
 	}
 
 	return &KafkaConsumer{
