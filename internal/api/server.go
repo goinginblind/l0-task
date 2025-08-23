@@ -53,7 +53,7 @@ func NewServer(service service.OrderService, logger logger.Logger, cfg config.HT
 	mainMux.Handle("/", metricsMiddleware(mux))
 
 	srv.httpServer = &http.Server{
-		Handler:      mainMux,
+		Handler:      recoveryMiddleware(mainMux, logger),
 		ReadTimeout:  cfg.ReadTimeout,
 		WriteTimeout: cfg.WriteTimeout,
 		IdleTimeout:  cfg.IdleTimeout,

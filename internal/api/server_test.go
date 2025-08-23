@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// TODO: these tests are depricated
-
 // MockOrderService is a mock implementation of the OrderService.
 type MockOrderService struct {
 	mock.Mock
