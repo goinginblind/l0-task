@@ -19,10 +19,11 @@ database:
   max_connections: 10
   max_idle_conns: 5
   conn_max_lifetime: "30m"
-	conn_max_idle_time: "10m"
+  conn_max_idle_time: "10m"
 
 kafka:
   bootstrap_servers: "localhost:9092"
+  dlq_topic: "orders.deadline"
   consumer_group_id: "orders-consumer"
   auto_offset_reset: "earliest"
   enable_auto_commit: false
@@ -39,11 +40,18 @@ health:
 
 consumer:
   topic: "orders"
-  dlq_topic: "orders.deadline"
   worker_count: 4
   job_buffer_size: 8
   max_retries: 3
   retry_backoff: 250ms
+  dlq:
+    topic: "orders-dlq"
+    acks: "all"
+    retries: 10
+    delivery_timeout: 30
+    linger: 0
+    batch_size: 1
+    idempotence: true
 
 cache:
   entry_size_cap: 1_048_576 # 1Mb
