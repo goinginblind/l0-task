@@ -1,4 +1,4 @@
-[Русский README](README.ru.md)
+[README (russian)](README.ru.md)
 
 # L0 Task Project
 

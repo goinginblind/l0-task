@@ -1,4 +1,4 @@
-[English README](README.md)
+[README (english)](README.md)
 
 # Проект к заданию L0
 
