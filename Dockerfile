@@ -40,6 +40,6 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends librdkafka1
 
 COPY --from=builder /app/producer .
-COPY orders.json .
+COPY mock.json .
 
 CMD ["./producer"]
