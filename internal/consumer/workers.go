@@ -10,7 +10,6 @@ import (
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
 	"github.com/goinginblind/l0-task/internal/domain"
-	"github.com/goinginblind/l0-task/internal/pkg/health"
 	"github.com/goinginblind/l0-task/internal/pkg/logger"
 	"github.com/goinginblind/l0-task/internal/pkg/metrics"
 	"github.com/goinginblind/l0-task/internal/service"
@@ -31,11 +30,23 @@ type worker struct {
 type workerDependencies struct {
 	service       service.OrderService
 	logger        logger.Logger
-	consumer      *kafka.Consumer // consumer is passed into worker since the offset commits are manual, so it does need it
+	consumer      Committer // consumer is passed into worker since the offset commits are manual, so it does need it
 	ctx           context.Context
-	healthChecker *health.DBHealthChecker
+	healthChecker UnhealthyMarker
 	dlqTopic      string
-	dlqPublisher  *kafka.Producer
+	dlqPublisher  DLQProducer
+}
+
+type Committer interface {
+	CommitMessage(msg *kafka.Message) ([]kafka.TopicPartition, error)
+}
+
+type DLQProducer interface {
+	Produce(msg *kafka.Message, deliveryChan chan kafka.Event) error
+}
+
+type UnhealthyMarker interface {
+	MarkUnhealthy()
 }
 
 // run processes the message

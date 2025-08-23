@@ -15,16 +15,36 @@ import (
 
 // KafkaConsumer consumes messages from Kafka and processes them.
 type KafkaConsumer struct {
-	consumer      *kafka.Consumer
+	consumer      MessageConsumer
 	service       service.OrderService
 	logger        logger.Logger
 	healthChecker *health.DBHealthChecker
 	workerCount   int
 	jobBuffer     int
-	maxRetries    int             // passed to workers
-	retryBackoff  time.Duration   // passed to workers
-	dlqTopic      string          // passed to workers
-	dlqPublisher  *kafka.Producer // passed to workers
+	maxRetries    int           // passed to workers
+	retryBackoff  time.Duration // passed to workers
+	dlqTopic      string        // passed to workers
+	dlqPublisher  DLQManager    // passed to workers
+}
+
+// Message consumer is an interface which the conrcete kafka.Consumer implements.
+// It is needed to provide (some) decoupling and ease the test implementation.
+type MessageConsumer interface {
+	Subscribe(topic string, rebalanceCb kafka.RebalanceCb) error
+	Poll(timeoutMs int) kafka.Event
+	Assignment() (partitions []kafka.TopicPartition, err error)
+	Pause(partitions []kafka.TopicPartition) error
+	Resume(partitions []kafka.TopicPartition) error
+	Close() error
+	CommitMessage(msg *kafka.Message) ([]kafka.TopicPartition, error)
+}
+
+// DLQManager is an interface which the concrete kafka.Producer implements.
+// Again, made to ease testing
+type DLQManager interface {
+	Events() chan kafka.Event
+	Close()
+	Produce(msg *kafka.Message, deliveryChan chan kafka.Event) error
 }
 
 // NewKafkaConsumer creates a new KafkaConsumer.

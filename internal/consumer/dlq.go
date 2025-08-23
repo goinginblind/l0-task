@@ -8,8 +8,9 @@ import (
 )
 
 // drainDLQReports logs if the message sent to DLQ was or was not delivered.
-// It could be a place used for metrics and mostly provides observability.
-func drainDLQReports(ctx context.Context, p *kafka.Producer, log logger.Logger) {
+// It could be a place used for metrics and mostly provides
+// observability (with logs but i will add metrics soon too)
+func drainDLQReports(ctx context.Context, p DLQManager, log logger.Logger) {
 	for {
 		select {
 		case <-ctx.Done():
