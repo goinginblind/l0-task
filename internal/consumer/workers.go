@@ -31,9 +31,11 @@ type worker struct {
 type workerDependencies struct {
 	service       service.OrderService
 	logger        logger.Logger
-	consumer      *kafka.Consumer
+	consumer      *kafka.Consumer // consumer is passed into worker since the offset commits are manual, so it does need it
 	ctx           context.Context
 	healthChecker *health.DBHealthChecker
+	dlqTopic      string
+	dlqPublisher  *kafka.Producer
 }
 
 // run processes the message
@@ -53,13 +55,8 @@ func (w *worker) run(wg *sync.WaitGroup) {
 	}
 }
 
-// process message does basic msg content processing:
-//   - decodes json (disallowing foreign fields)
-//   - passes this down to service layer (validation and db write)
-//   - in case of the db being unavailable it notifies the consumer
-//   - transient db hiccups are handled with retries
-//   - other errors either discarded or sent to DLQ
-//   - metrics are scraped with either 'error', 'valid' or 'invalid' labels
+// processMessage unmarshals the kafka message and then coordinates the processing
+// and result handling.
 func (w *worker) processMessage(msg *kafka.Message) {
 	var order domain.Order
 	dec := json.NewDecoder(bytes.NewReader(msg.Value))
@@ -72,18 +69,20 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		return
 	}
 
+	processErr := w.processWithRetries(&order)
+	w.handleProcessingResult(msg, &order, processErr)
+}
+
+// processWithRetries contains the retry loop for handling transient DB errors.
+func (w *worker) processWithRetries(order *domain.Order) error {
 	var processErr error
-	for attempt := 1; attempt <= w.maxRetries; attempt++ {
-		processErr = w.deps.service.ProcessNewOrder(w.deps.ctx, &order)
+	for attempt := 0; attempt < w.maxRetries; attempt++ {
+		processErr = w.deps.service.ProcessNewOrder(w.deps.ctx, order)
 		if processErr == nil {
-			// success == commit, exit
-			metrics.MessagesProcessedTotal.WithLabelValues("valid").Inc()
-			w.deps.logger.Infow("order successfully processed", "worker_id", w.id, "order_uid", order.OrderUID)
-			w.commit(msg)
-			return
+			return nil // success
 		}
 
-		// any other error == break the loop immediately
+		// any other error than a connection error should break the loop immediately
 		if !errors.Is(processErr, store.ErrConnectionFailed) {
 			break
 		}
@@ -91,18 +90,27 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		metrics.DbTransientErrors.Inc()
 
 		// If it was a connection error, log a warning and wait before the next attempt.
-		if attempt < w.maxRetries {
-			w.deps.logger.Warnw("Transient DB connection error, will retry.",
-				"order_uid", order.OrderUID,
-				"attempt", attempt,
-				"retry_in", w.retryBackoff,
-				"error", processErr,
-			)
-			time.Sleep(w.retryBackoff)
-		}
+		w.deps.logger.Warnw("Transient DB connection error, will retry.",
+			"order_uid", order.OrderUID,
+			"attempt", attempt,
+			"retry_in", w.retryBackoff,
+			"error", processErr,
+		)
+		// Corrected exponential backoff: 1<<attempt is 2^attempt
+		time.Sleep(w.retryBackoff * time.Duration(1<<attempt))
+	}
+	return processErr
+}
+
+// handleProcessingResult inspects the final error and decides what to do.
+func (w *worker) handleProcessingResult(msg *kafka.Message, order *domain.Order, processErr error) {
+	if processErr == nil {
+		metrics.MessagesProcessedTotal.WithLabelValues("valid").Inc()
+		w.deps.logger.Infow("order successfully processed", "worker_id", w.id, "order_uid", order.OrderUID)
+		w.commit(msg)
+		return
 	}
 
-	// inspect `processErr` to decide what to do (and log it)
 	w.deps.logger.Errorw("Failed to process order after all attempts.",
 		"order_uid", order.OrderUID,
 		"attempts", w.maxRetries,
@@ -111,20 +119,20 @@ func (w *worker) processMessage(msg *kafka.Message) {
 
 	switch {
 	case errors.Is(processErr, domain.ErrInvalidOrder):
-		// TODO III: DLQ
 		metrics.MessagesProcessedTotal.WithLabelValues("invalid").Inc()
-		w.deps.logger.Warnw("Invalid order received, discarding",
+		w.deps.logger.Warnw("Invalid order received, sending to DLQ",
 			"order_uid", order.OrderUID,
 			"error", processErr,
 		)
+		w.sendToDLQ(msg, processErr)
 
 	case errors.Is(processErr, store.ErrAlreadyExists):
-		// TODO III: DLQ
 		metrics.MessagesProcessedTotal.WithLabelValues("invalid").Inc()
-		w.deps.logger.Warnw("Order already exists, discarding",
+		w.deps.logger.Warnw("Order already exists, sending to DLQ",
 			"order_uid", order.OrderUID,
 			"error", processErr,
 		)
+		w.sendToDLQ(msg, processErr)
 
 	case errors.Is(processErr, store.ErrConnectionFailed):
 		metrics.MessagesProcessedTotal.WithLabelValues("error").Inc()
@@ -136,9 +144,9 @@ func (w *worker) processMessage(msg *kafka.Message) {
 		return // no commit since the message isn't processed, kafka will resend when db is up
 
 	default:
-		// TODO III: unknown errors == msg commited, DLQ
 		metrics.MessagesProcessedTotal.WithLabelValues("error").Inc()
-		w.deps.logger.Errorw("Failed to process order with an unhandled error", "order_uid", order.OrderUID, "error", processErr)
+		w.deps.logger.Errorw("Failed to process order with an unhandled error, sending to DLQ", "order_uid", order.OrderUID, "error", processErr)
+		w.sendToDLQ(msg, processErr)
 	}
 
 	w.commit(msg)
