@@ -159,13 +159,13 @@ func LoadConfig() (*Config, error) {
 			// Config file not found; ignore err if we have env vars
 		} else {
 			// Config file was found but another err
-			return nil, fmt.Errorf("Failed to read config file: %w", err)
+			return nil, fmt.Errorf("failed to read config file: %w", err)
 		}
 	}
 
 	var cfg Config
 	if err := viper.Unmarshal(&cfg); err != nil {
-		return nil, fmt.Errorf("Failed to unmarshal config: %w", err)
+		return nil, fmt.Errorf("failed to unmarshal config: %w", err)
 	}
 
 	return &cfg, nil
