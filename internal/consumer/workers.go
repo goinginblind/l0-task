@@ -75,6 +75,7 @@ func (w *worker) run(wg *sync.WaitGroup) {
 							"panic", r,
 							"stack", string(debug.Stack()),
 						)
+						metrics.DLQMessagesTotal.WithLabelValues("panic").Inc()
 						w.sendToDLQ(msg, fmt.Errorf("worker encountered panic: %v", r))
 					}
 				}()
@@ -87,6 +88,7 @@ func (w *worker) run(wg *sync.WaitGroup) {
 // processMessage unmarshals the kafka message and then orchestrates the processing
 // and result handling (passing down to the helper functions).
 func (w *worker) processMessage(msg *kafka.Message) {
+	defer metrics.ObserveKafkaMessageLatency(msg, metrics.MessageProcessingLatency)
 	var order domain.Order
 	dec := json.NewDecoder(bytes.NewReader(msg.Value))
 	dec.DisallowUnknownFields()
@@ -144,6 +146,7 @@ func (w *worker) handleProcessingResult(msg *kafka.Message, order *domain.Order,
 	switch {
 	case errors.Is(processErr, domain.ErrInvalidOrder):
 		metrics.MessagesProcessedTotal.WithLabelValues("invalid").Inc()
+		metrics.DLQMessagesTotal.WithLabelValues("invalid_order").Inc()
 		w.deps.logger.Warnw("Invalid order received, sending to DLQ",
 			"order_uid", order.OrderUID,
 			"error", processErr,
@@ -152,6 +155,7 @@ func (w *worker) handleProcessingResult(msg *kafka.Message, order *domain.Order,
 
 	case errors.Is(processErr, store.ErrAlreadyExists):
 		metrics.MessagesProcessedTotal.WithLabelValues("invalid").Inc()
+		metrics.DLQMessagesTotal.WithLabelValues("already_exists").Inc()
 		w.deps.logger.Warnw("Order already exists, sending to DLQ",
 			"order_uid", order.OrderUID,
 			"error", processErr,
@@ -169,7 +173,11 @@ func (w *worker) handleProcessingResult(msg *kafka.Message, order *domain.Order,
 
 	default:
 		metrics.MessagesProcessedTotal.WithLabelValues("error").Inc()
-		w.deps.logger.Errorw("Failed to process order with an unhandled error, sending to DLQ", "order_uid", order.OrderUID, "error", processErr)
+		metrics.DLQMessagesTotal.WithLabelValues("unhandled_error").Inc()
+		w.deps.logger.Errorw("Failed to process order with an unhandled error, sending to DLQ",
+			"order_uid", order.OrderUID,
+			"error", processErr,
+		)
 		w.sendToDLQ(msg, processErr)
 	}
 

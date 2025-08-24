@@ -16,7 +16,7 @@ import (
 
 // KafkaConsumer consumes messages from Kafka and processes them.
 type KafkaConsumer struct {
-	consumer      MessageConsumer
+	consumer      kafkaConsumer
 	service       service.OrderService
 	logger        logger.Logger
 	healthChecker *health.DBHealthChecker
@@ -28,16 +28,29 @@ type KafkaConsumer struct {
 	dlqPublisher  DLQManager    // passed to workers
 }
 
-// Message consumer is an interface which the conrcete kafka.Consumer implements.
-// It is needed to provide (some) decoupling and ease the test implementation.
-type MessageConsumer interface {
+// kafkaConsumer is a composite interface that includes all the consumer functionalities.
+// The concrete *kafka.Consumer implements all of these methods.
+type kafkaConsumer interface {
+	ConsumerController
+	LagQuerier
+	Committer // from workers.go
+}
+
+// ConsumerController defines the core methods for managing consumer logic (the poll mainly)
+type ConsumerController interface {
 	Subscribe(topic string, rebalanceCb kafka.RebalanceCb) error
 	Poll(timeoutMs int) kafka.Event
 	Assignment() (partitions []kafka.TopicPartition, err error)
 	Pause(partitions []kafka.TopicPartition) error
 	Resume(partitions []kafka.TopicPartition) error
 	Close() error
-	CommitMessage(msg *kafka.Message) ([]kafka.TopicPartition, error)
+}
+
+// LagQuerier defines methods needed to check the consumer lag
+type LagQuerier interface {
+	QueryWatermarkOffsets(topic string, partition int32, timeoutMs int) (low, high int64, err error)
+	Committed(partitions []kafka.TopicPartition, timeoutMs int) (offsets []kafka.TopicPartition, err error)
+	Assignment() (partitions []kafka.TopicPartition, err error)
 }
 
 // DLQManager is an interface which the concrete kafka.Producer implements.
@@ -51,7 +64,7 @@ type DLQManager interface {
 // NewKafkaConsumer creates a new KafkaConsumer.
 func NewKafkaConsumer(kafCfg config.KafkaConfig, consCfg config.ConsumerConfig,
 	service service.OrderService, log logger.Logger, hc *health.DBHealthChecker) (*KafkaConsumer, error) {
-	consumerKafkaConfig := &kafka.ConfigMap{
+	consumerConfig := &kafka.ConfigMap{
 		"bootstrap.servers":     kafCfg.BootstrapServers,
 		"group.id":              kafCfg.ConsumerGroupID,
 		"auto.offset.reset":     kafCfg.AutoOffsetReset,
@@ -63,12 +76,12 @@ func NewKafkaConsumer(kafCfg config.KafkaConfig, consCfg config.ConsumerConfig,
 		"session.timeout.ms":    kafCfg.SessionTimeoutMs,
 		"heartbeat.interval.ms": kafCfg.HeartbeatIntervalMs,
 	}
-	consumer, err := kafka.NewConsumer(consumerKafkaConfig)
+	consumer, err := kafka.NewConsumer(consumerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create consumer: %v", err)
 	}
 
-	producerCfg := &kafka.ConfigMap{
+	producerConfig := &kafka.ConfigMap{
 		"bootstrap.servers":   kafCfg.BootstrapServers,
 		"acks":                consCfg.DLQ.Acks,
 		"retries":             consCfg.DLQ.Retries,
@@ -77,7 +90,7 @@ func NewKafkaConsumer(kafCfg config.KafkaConfig, consCfg config.ConsumerConfig,
 		"batch.size":          consCfg.DLQ.BatchSize,
 		"enable.idempotence":  consCfg.DLQ.EnableIdempotence,
 	}
-	dlqPublisher, err := kafka.NewProducer(producerCfg)
+	dlqPublisher, err := kafka.NewProducer(producerConfig)
 	if err != nil {
 		return nil, fmt.Errorf("fail to create dlq-producer: %v", err)
 	}
@@ -105,6 +118,7 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 	// this goroutine is a background one, it makes sure the dlq send does not block and
 	// that we can still use the fire-and-forget approach for the sendToDLQ function.
 	go drainDLQReports(ctx, kc.dlqPublisher, kc.logger)
+	go kc.monitorConsumerLag(ctx)
 
 	jobs := make(chan *kafka.Message, kc.jobBuffer)
 	var wg sync.WaitGroup
@@ -143,7 +157,7 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 				kc.logger.Infow("Shutting down the consumer...")
 				return
 			default:
-				kc.manageConsumerState(&isPaused)
+				kc.manageConsumerState(kc.consumer, &isPaused)
 
 				ev := kc.consumer.Poll(100) // this poll ensures the consumer doesn't disconnect from kafka
 				if ev == nil {
@@ -173,14 +187,14 @@ func (kc *KafkaConsumer) Run(ctx context.Context) {
 }
 
 // manageConsumerState pauses or resumes the consumer based on DB health.
-func (kc *KafkaConsumer) manageConsumerState(isPaused *bool) {
+func (kc *KafkaConsumer) manageConsumerState(consumer ConsumerController, isPaused *bool) {
 	// db is NOT healthy and consumer is NOT paused: log, pause
 	if !kc.healthChecker.IsHealthy() && !*isPaused {
 		time.Sleep(100 * time.Millisecond) // avoid hot spins when the db is down
-		assignedPartitions, err := kc.consumer.Assignment()
+		assignedPartitions, err := consumer.Assignment()
 		if err == nil && len(assignedPartitions) > 0 {
 			kc.logger.Warnw("DB is unhealthy. Pausing consumption on partitions.", "partitions", assignedPartitions)
-			if err := kc.consumer.Pause(assignedPartitions); err != nil {
+			if err := consumer.Pause(assignedPartitions); err != nil {
 				kc.logger.Errorw("Failed to pause consumer", "error", err)
 			} else {
 				*isPaused = true
@@ -188,43 +202,13 @@ func (kc *KafkaConsumer) manageConsumerState(isPaused *bool) {
 		}
 		// db IS healthy and consumer IS paused: log, unpause
 	} else if kc.healthChecker.IsHealthy() && *isPaused {
-		assignedPartitions, err := kc.consumer.Assignment()
+		assignedPartitions, err := consumer.Assignment()
 		if err == nil && len(assignedPartitions) > 0 {
 			kc.logger.Infow("DB is healthy again. Resuming consumption on partitions.", "partitions", assignedPartitions)
-			if err := kc.consumer.Resume(assignedPartitions); err != nil {
+			if err := consumer.Resume(assignedPartitions); err != nil {
 				kc.logger.Errorw("Failed to resume consumer", "error", err)
 			} else {
 				*isPaused = false
-			}
-		}
-	}
-}
-
-// drainDLQReports logs if the message sent to DLQ was or was not delivered.
-// It could be a place used for metrics and mostly provides
-// observability (with logs but i will add metrics soon too)
-func drainDLQReports(ctx context.Context, p DLQManager, log logger.Logger) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case e, ok := <-p.Events():
-			if !ok {
-				return
-			}
-			switch ev := e.(type) {
-			case *kafka.Message:
-				if ev.TopicPartition.Error != nil {
-					log.Errorw("DLQ delivery failed",
-						"error", ev.TopicPartition.Error,
-						"order_uid", string(ev.Key))
-				} else {
-					log.Infow("DLQ message delivered",
-						"topic", *ev.TopicPartition.Topic,
-						"partition", ev.TopicPartition.Partition,
-						"offset", ev.TopicPartition.Offset,
-						"order_uid", string(ev.Key))
-				}
 			}
 		}
 	}
