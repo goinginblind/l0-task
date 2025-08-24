@@ -340,40 +340,64 @@ This command connects to the PostgreSQL database using environment variables (e.
 
 ## Metrics / Monitoring / Observability
 
-The project is set up with Prometheus for metrics collection and Grafana for visualization, along with structured logging using Zap.
+The project is set up with Prometheus for metrics collection, Grafana for visualization, and Node-exporter for host-level metrics, along with structured logging using Zap.
 
-### Metrics
+### Metrics Collection
 
-Key metrics are exposed by the application via the `/metrics` endpoint (scraped by Prometheus) and defined in `internal/pkg/metrics/metrics.go`. These include:
+Metrics are collected from various components of the application and the host system:
 
-*   **HTTP Request Metrics:**
-    *   `http_total_requests`: Total count of HTTP requests, labeled by method, path, and response code.
-    *   `http_request_duration`: Histogram of HTTP request durations, labeled by method and path.
-*   **Consumer Metrics:**
-    *   `consumer_processed_total`: Total number of processed messages by the Kafka consumer, labeled by status (i.e., `valid`, `invalid`, `error`).
-*   **Cache Metrics:**
-    *   `cache_hits_total`: Total number of cache hits.
-    *   `cache_misses_total`: Total number of cache misses.
-    *   `cache_response_time`: Histogram of cache response durations, labeled by operation (e.g., `get_order`, `insert_order`).
-*   **Database Metrics:**
-    *   `db_response_time`: Histogram of database response durations, labeled by operation.
-    *   `db_up`: Gauge indicating database reachability (1 for up, 0 for down, displayed as either 'OK' or 'FAIL').
-    *   `db_transient_err_total`: Total number of recoverable database errors ('hiccups').
+*   **Host System Metrics:** Collected by Node-exporter, these include CPU load, RAM usage, Load Average (1m, 5m, 15m), and Network I/O.
+*   **Application Metrics:** Exposed by the application via the `/metrics` endpoint (scraped by Prometheus) and defined in `internal/pkg/metrics/metrics.go`. These include:
+    *   **HTTP Request Metrics:**
+        *   `http_total_requests`: Total count of HTTP requests, labeled by method, path, and response code.
+        *   `http_request_duration`: Histogram of HTTP request durations, labeled by method and path.
+    *   **Consumer Metrics:**
+        *   `consumer_processed_total`: Total number of processed messages by the Kafka consumer, labeled by status (i.e., `valid`, `invalid`, `error`).
+        *   `consumer_processing_latency`: Histogram of message processing durations.
+        *   `consumer_lag`: Gauge showing the current consumer lag.
+        *   `consumer_dlq_sent_total`: Total messages sent to the Dead-Letter Queue.
+    *   **Cache Metrics:**
+        *   `cache_hits_total`: Total number of cache hits.
+        *   `cache_misses_total`: Total number of cache misses.
+        *   `cache_response_time`: Histogram of cache response durations, labeled by operation (e.g., `get_order`, `insert_order`).
+    *   **Database Metrics:**
+        *   `db_response_time`: Histogram of database response durations, labeled by operation.
+        *   `db_up`: Gauge indicating database reachability (1 for up, 0 for down, displayed as either 'OK' or 'FAIL').
+        *   `db_transient_err_total`: Total number of recoverable database errors ('hiccups').
 
 ### Monitoring with Prometheus and Grafana
 
 Prometheus and Grafana are deployed via `docker-compose.yml` for comprehensive monitoring.
 
 *   **Prometheus:**
-    *   Configured to scrape metrics from the `app` service (the main consumer API) at `http://app:8080/metrics` as defined in `configs/prometheus/prometheus.yml`.
+    *   Configured to scrape metrics from the `app` service (the main consumer API) at `http://app:8080/metrics` and Node-exporter at `http://node-exporter:9100/metrics` as defined in `configs/prometheus/prometheus.yml`.
     *   Accessible on the host via port `9090` (configurable via `PROMETHEUS_PORT` in `.env`).
 
 *   **Grafana:**
-    *   Pre-provisioned with a dashboard (`configs/grafana/provisioning/dashboards/dashboard.json`) that visualizes the application's key metrics.
+    *   Pre-provisioned with a dashboard (`configs/grafana/provisioning/dashboards/dashboard.json`) that visualizes the application's key metrics and host system metrics.
     *   Uses a Prometheus data source configured in `configs/grafana/provisioning/datasources/datasource.yml`.
     *   Accessible on the host via port `3000` (configurable via `GRAFANA_PORT` in `.env`).
 
 To access the dashboards, navigate to `http://localhost:3000` (or your configured Grafana port) in your browser after running `docker compose up` or `make run-all`.
+
+### Example Metrics in Grafana
+
+Collected using a [locust](https://github.com/locustio/locust) python script with ~70 requests per second to `/orders/{id}` almost from the very start of the broker, producer, db, etc.
+
+#### System Metrics:
+![host_metric](docs/host_metric.png)
+
+#### API Metrics:
+![api_metric](docs/api_metric.png)
+
+#### Consumer Metrics:
+![cons_metric](docs/cons_metric.png)
+
+#### Cache Metrics:
+![cache_metric](docs/cache_metric.png)
+
+#### DB Metrics:
+![db_metric](docs/db_metric.png)
 
 ### Logging
 

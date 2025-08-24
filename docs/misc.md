@@ -1,43 +1,46 @@
 # Sentinel errors
-How would a worker notice if the data is bad? And more importantly why its bad? Is even the data bad?..
-That's why the store package contains so-called sentinel errors:
 ``` Go
 var (
-	ErrNotFound = errors.New("no such record exists")
+	ErrNotFound = errors.New("no record found")
 	ErrAlreadyExists = errors.New("record already exists")
-	ErrConnectionFailed = errors.New("connection to the database failed")
+	ErrConnectionFailed = errors.New("failed connection to DB")
 )
 ```
-The errors just bubble up nicely and the upper layers are not actually concerned with an exact type of errors, so even if the storage changes later (e.g. unique_violation in psql is `23505`, but mysql has a `1062` code for the same thing). Kinda decouples the store and the upper layers. An example use of it is when it 'bubbles up' to the worker, it instantly marks the db as unhealthy using the HealthChecker
+These errors "bubble up", and the upper layers are not actually concerned with the exact type of errors. Thus, even if the data store changes later (e.g., `unique_violation` in PostgreSQL has code `23505`, and MySQL uses code `1062` for the same thing), it will not affect them. An example of use is when an error "bubbles up" to the worker, it immediately marks the database as unhealthy using the HealthChecker.
 
 # DBHealthChecker
-Is a simple pinger with a configurable interval and a configurable timeout in a single ping. It runs all the time, but is activated early by a worker. Initially I had an idea of it running only when the db is found to be down by a worker, but it was too complex to manage it, thus `MarkUnhealthy()` is a sort of legacy thing, that finds its use when the healthchecker itself has a big interval (e.g. 15s) to prevent partitions from Kafka to be dispatched unneccesarily.
-The health package can be found [here](../internal/pkg/health/dbhealth.go)!
+This is a simple "pinger" with a configurable interval and a configurable timeout for a single ping. It runs constantly, but its atomic.Bool variable can be changed by the worker earlier than the ping interval. Initially, I had the idea for it to run only when the worker detects that the database is unavailable, but managing this proved too complex. Therefore, `MarkUnhealthy()` is a kind of legacy that finds its use when the healthchecker itself has a large interval (e.g., 15 seconds) or simply to prevent unnecessary sending of partitions from Kafka, for example, to redistribute the load faster.
+The `health` package can be found [here](../internal/pkg/health/dbhealth.go)!
 
 # Monitoring
-The service utilises Prometheus and Grafana, the metrics are pretty simple because:
-* I actually (almost) never did any monitoring/metrics scraping before.
-* Time.
+The service uses Prometheus, Grafana, and Node-exporter:
+- **Host system metrics:** CPU load, RAM, Load Average (1m, 5m, 15m), Network I/O
+- **API metrics:** number of requests and their latencies
+- **Consumer metrics:** processing frequency, processing latency, consumer lag, and DLQ sending frequency
+- **Cache:** hit/miss rate and cache response speed for Get/Insert requests
+- **DB:** connection availability, processing time for Get/Insert requests, and frequency of transient errors (connection violations not longer than 5 ms).
 
-So the metrics are:
-* **HTTP total requsts** and **HTTP request duration** because might be useful for maybe data engeneers (possibly?(maybe..?))
-* **Consumer processed count** is the amount of messages (of 3 types: valid, invalid, errors) processed total
-* **Cache hits and cache misses** to maybe be able to adjust cache max entries or max size of a single entry according to the needs of usage. Same for the **cache response time**.
-* And **Is db up?**, **Database response time** and **Database transient errors** to maybe ease the load if the db starts to hiccup (or dies).
+## Example of metrics displayed in Grafana
+Collected using a [locust](https://github.com/locustio/locust) python script with ~70 requests per second to `/orders/{id}` almost from the very start of the broker, producer, db, etc.
+### System metrics:
+![host_metric](../host_metric.png)
 
-## An example of metrics displayed with grafana
-Collected using a [locust](https://github.com/locustio/locust) python script with ~2500 concurrent users (my pc startet throttling at about 1000, which can clearly be seen with the db 'Get' requests taking a lot more time than expected!)
-### Database:
+### API metrics:
+![api_metric](../api_metric.png)
 
-![db_metric](db_metric.png)
+### Consumer metrics:
+![cons_metric](../cons_metric.png)
 
-### Cache:
-![cache_metric](cache_metric.png)
+### Cache metrics:
+![cache_metric](../cache_metric.png)
+
+### DB metrics:
+![db_metric](../db_metric.png)
 
 ### Other Documentation:
 * [Database Schema](database.md)
-* [Consumer Decision Tree](consumer.md)
+* [Consumer Principles](consumer.md)
 * [Cache Implementation](cache.md)
 * [JSON Validation](validation.md)
 
-### Back to [Main README](../README.md)
+### Back to [Main README](../../README.md)
