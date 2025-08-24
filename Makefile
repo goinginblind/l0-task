@@ -22,7 +22,7 @@ up-app:
 	docker compose up -d app
 
 up-metric:
-	docker compose up -d prometheus grafana
+	docker compose up -d prometheus grafana node-exporter
 
 # migrate psql using goose; it waits for the psql to be up
 migrate:
