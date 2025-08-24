@@ -14,3 +14,5 @@ class OrdersUser(HttpUser):
         import random
         order_id = random.choice(order_ids)
         self.client.get(f"/orders/{order_id}")
+
+# USE: locust -f locustfile.py 
