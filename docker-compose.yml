@@ -105,6 +105,24 @@ services:
     networks:
       - l0-network
 
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter-l0
+    restart: always
+    ports:
+      - "${NODE_EXPORTER_PORT}:9100"
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--path.rootfs=/rootfs'
+      - '--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)'
+    networks:
+      - l0-network
+
 volumes:
   postgres_data:
 
